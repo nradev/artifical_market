@@ -6,12 +6,12 @@ from environment.instruments import Stock
 from agents.genetic import ForecastRule, RuleBook
 
 class MarketAgent(Agent):
-    def __init__(self, agent_id, model):
+    def __init__(self, agent_id, model, init_shares, init_wealth):
         super().__init__(agent_id, model)
         self.order_count = 0
-        self.wealth = 1000
-        self.stock_preference = random.random()
-        self.stock_shares = 50
+        self.wealth = init_wealth
+        ###self.stock_preference = random.random()
+        self.stock_shares = init_shares
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
         self.rule_book = RuleBook(100)
@@ -74,7 +74,7 @@ class MarketModel(Model):
         self.schedule = RandomActivation(self)
         self.order_book = OrderBook(self)
         for i in range(self.num_agents):
-            a = MarketAgent(i, self)
+            a = MarketAgent(i, self, 1000/N, 1000)
             self.schedule.add(a)
 
     def step(self):
