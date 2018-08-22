@@ -4,8 +4,8 @@ import numpy
 
 
 class Agent:
-    def __init__(self, unique_id, model):
-        self.unique_id = unique_id
+    def __init__(self, agent_id, model):
+        self.unique_id = agent_id
         self.model = model
 
     def step(self):
