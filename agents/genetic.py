@@ -1,6 +1,5 @@
 import random
 
-
 class ForecastRule:
     def __init__(self, rule_string, a, b, sigma_sq, accuracy):
         self.rule_string = rule_string
@@ -20,9 +19,9 @@ class ForecastRule:
                                                                               str(round(self.accuracy, 2)),
                                                                               str(round(self.strength, 2)))
 
-    def match_to_market(self, model):
+    def match_to_market(self, stock):
         for idx, ch in enumerate(self.rule_string):
-            if ch != "#" and ch != model.stock.rule_string[idx]: return False
+            if ch != "#" and ch != stock.rule_string[idx]: return False
         return True
 
     def evaluate(self):
@@ -150,7 +149,7 @@ def mutate_rule(rule, p_bit_mut=0.03, p_0_to_hash=2. / 3., p_1_to_hash=2. / 3., 
 # print(rule_2)
 # [print(crossover_rules(rule_1, rule_2)) for i in range(10)]
 
-rule_book = RuleBook(10)
-[print(rule) for rule in rule_book.rules]
-rule_book.evolve(0.5, 0.5)
-[print(rule) for rule in rule_book.rules]
+# rule_book = RuleBook(10)
+# [print(rule) for rule in rule_book.rules]
+# rule_book.evolve(0.5, 0.5)
+# [print(rule) for rule in rule_book.rules]

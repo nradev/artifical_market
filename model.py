@@ -3,10 +3,11 @@ from environment.core.components import Agent, Model
 from environment.core.scheduler import RandomActivation
 from environment.order import Order, OrderBook
 from environment.instruments import Stock
-#from agents.genetic import ForecastRule, RuleBook
+from agents.strategies import zero_information, genetic
+from agents.genetic import RuleBook
 
 class MarketAgent(Agent):
-    def __init__(self, agent_id, model, init_shares, init_wealth):
+    def __init__(self, agent_id, model, init_shares, init_wealth, strategy = 'zero_information'):
         super().__init__(agent_id, model)
         self.agent_id = agent_id
         self.order_count = 0
@@ -14,7 +15,11 @@ class MarketAgent(Agent):
         self.stock_shares = init_shares
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
-        #self.rule_book = RuleBook(100)
+        if strategy == 'zero_information':
+            self.calculate_share_demand = zero_information
+        elif strategy == 'genetic':
+            self.calculate_share_demand = genetic
+            self.rule_book = RuleBook(100)
 
     def step(self):
         self.recalculate_portfolio()
@@ -25,35 +30,14 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        share_demand = self.calculate_share_demand(self.model.glob_risk_aversion)
+        share_demand = self.calculate_share_demand(self, self.model) #self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
+        #if self.agent_id == 5: print(share_demand)
         trade_shares = share_demand - self.stock_shares
         # trade_price = self.calculate_trade_price()
         if trade_shares > 0:
             self.order_trade(min(trade_shares, self.model.max_long*self.model.stock.outstanding_shares))
         if trade_shares < 0:
             self.order_trade(max(trade_shares, -self.model.max_short*self.model.stock.outstanding_shares))
-
-    # def get_matched_rule_params(self):
-    #     matched_rules = [rule for rule in self.rule_book.rules if rule.match_to_market(self.model)]
-    #     best_rule = [rule for rule in matched_rules if rule.strength == max(rule.strength for rule in matched_rules)][0]
-    #     return best_rule.a, best_rule.b, best_rule.sigma_sq
-
-    def calculate_share_demand(self, risk_aversion=0.5):
-        gamma = risk_aversion
-        a, b, sigma_sq = 10, 5, 0.2
-        exp_p_d = random.uniform(0.9, 1.1) * (self.model.stock.price + self.model.stock.dividend)
-        share_demand = (exp_p_d - (1 + self.model.rf_rate) * self.model.stock.price) / (gamma * sigma_sq)
-        #if self.agent_id == 5: print(share_demand)
-        return share_demand
-
-        # gamma = risk_aversion
-        # a, b, sigma_sq = self.get_matched_rule_params()
-        # exp_p_d = a * (self.model.stock.price + self.model.stock.dividend) + b
-        # share_demand = (exp_p_d - (1 + self.model.rf_rate) * self.model.stock.price) / (gamma * sigma_sq)
-        # return share_demand
-
-    # def calculate_trade_price(self):
-    #     return self.model.stock.price + (random.random() - 0.5)
 
     def order_trade(self, num_shares):
         if num_shares > 0:
@@ -89,7 +73,7 @@ class MarketModel(Model):
         self.schedule = RandomActivation(self)
         self.order_book = OrderBook()
         for i in range(self.n_agents):
-            a = MarketAgent(i, self, n_shares/n_agents, 1000)
+            a = MarketAgent(i, self, n_shares/n_agents, 1000, 'zero_information')
             self.schedule.add(a)
 
     def step(self):
@@ -103,7 +87,7 @@ class MarketModel(Model):
         sells = [x for x in self.order_book.orders if x.side == 'sell']
         buys = [x for x in self.order_book.orders if x.side == 'buy']
 
-        if not sells and buys:
+        if not (sells and buys):
             return
 
         agg_sells = sum([x.quantity for x in sells])
