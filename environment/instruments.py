@@ -43,7 +43,6 @@ class Stock:
         self.price_MA_10_hist[time_step] = self.price_MA_10
         self.price_MA_50_hist[time_step] = self.price_MA_50
         self.price_MA_100_hist[time_step] = self.price_MA_100
-        self.update_dividend()
         self.update_rule_string()
 
     def calculate_MA(self, periods, time_step):
@@ -54,7 +53,7 @@ class Stock:
 
     def update_dividend(self):
         from random import gauss
-        self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*self.model.dt + self.dividend_vol*sqrt(self.model.dt)*gauss(0, 1))
+        self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*(1/4) + self.dividend_vol*sqrt(1/4)*gauss(0, 1))
         #self.dividend = self.init_dividend + 0.95 * (self.dividend - self.init_dividend) + gauss(0, self.dividend_vol)
         self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend
 

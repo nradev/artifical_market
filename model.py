@@ -1,4 +1,5 @@
 import random
+from math import exp
 from environment.core.components import Agent, Model
 from environment.core.scheduler import RandomActivation
 from environment.order import Order, OrderBook
@@ -33,11 +34,10 @@ class MarketAgent(Agent):
         share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
         #if self.agent_id == 5: print(share_demand)
         trade_shares = share_demand - self.stock_shares
-        # trade_price = self.calculate_trade_price()
         if trade_shares > 0:
-            self.order_trade(min(trade_shares, self.model.max_long*self.model.stock.outstanding_shares))
+            self.order_trade(min(trade_shares, self.model.max_long*self.model.stock.outstanding_shares, (self.cash/self.model.stock.price)*0.95))
         if trade_shares < 0:
-            self.order_trade(max(trade_shares, -self.model.max_short*self.model.stock.outstanding_shares))
+            self.order_trade(max(trade_shares, -self.model.max_short*self.model.stock.outstanding_shares, -(self.cash/self.model.stock.price)*0.95))
 
     def order_trade(self, num_shares):
         if num_shares > 0:
@@ -76,6 +76,8 @@ class MarketModel(Model):
         for i in range(self.n_agents):
             a = MarketAgent(i, self, n_shares/n_agents, 1000, 'zero_information')
             self.schedule.add(a)
+        self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
+        self.global_wealth_hist = {0: self.global_wealth}
 
     def step(self):
         self.schedule.step()
@@ -83,6 +85,14 @@ class MarketModel(Model):
         self.settle()
         self.current_step += 1
         self.stock.update_data(self.current_step, self.stock.price)
+        for agent in self.schedule.agents:
+            agent.cash *= (1 + self.rf_rate) ** self.dt
+        if self.current_step % ((self.dt ** -1)/4) == 0:
+            self.stock.update_dividend()
+            for agent in self.schedule.agents:
+                agent.cash += (self.stock.dividend/4) * agent.stock_shares
+        self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
+        self.global_wealth_hist[self.current_step] = self.global_wealth
 
     def settle(self):
         sells = [x for x in self.order_book.orders if x.side == 'sell']
