@@ -1,23 +1,26 @@
+from math import exp, sqrt
+
 class Stock:
-    def __init__(self, ticker, model, initial_price=10, outstanding_shares=1000,
-                 equil_dividend=0.2, dividend_vol=0.2):
+    def __init__(self, ticker, model, init_price=10, outstanding_shares=1000,
+                 init_dividend=0.2, dividend_growth = 0.01, dividend_vol=0.2):
         self.ticker = ticker
         self.model = model
-        self.price = initial_price
+        self.price = init_price
         self.outstanding_shares = outstanding_shares
-        self.price_hist = {0: initial_price}
+        self.price_hist = {0: init_price}
         self.market_cap = self.price * outstanding_shares
-        self.equil_dividend = equil_dividend
+        self.init_dividend = init_dividend
+        self.dividend_growth = dividend_growth
         self.dividend_vol = dividend_vol
-        self.dividend = equil_dividend
-        self.price_MA_5 = initial_price
-        self.price_MA_10 = initial_price
-        self.price_MA_50 = initial_price
-        self.price_MA_100 = initial_price
-        self.price_MA_5_hist = {0: initial_price}
-        self.price_MA_10_hist = {0: initial_price}
-        self.price_MA_50_hist = {0: initial_price}
-        self.price_MA_100_hist = {0: initial_price}
+        self.dividend = init_dividend
+        self.price_MA_5 = init_price
+        self.price_MA_10 = init_price
+        self.price_MA_50 = init_price
+        self.price_MA_100 = init_price
+        self.price_MA_5_hist = {0: init_price}
+        self.price_MA_10_hist = {0: init_price}
+        self.price_MA_50_hist = {0: init_price}
+        self.price_MA_100_hist = {0: init_price}
         self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend
         self.rule_string = ""
         # for v in [0.25, 0.50, 0.75, 0.875, 1.0, 1.125]:
@@ -51,8 +54,8 @@ class Stock:
 
     def update_dividend(self):
         from random import gauss
-        self.dividend = self.equil_dividend + \
-                        0.95 * (self.dividend - self.equil_dividend) + gauss(0, self.dividend_vol)
+        self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*self.model.dt + self.dividend_vol*sqrt(self.model.dt)*gauss(0, 1))
+        #self.dividend = self.init_dividend + 0.95 * (self.dividend - self.init_dividend) + gauss(0, self.dividend_vol)
         self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend
 
     def update_rule_string(self):

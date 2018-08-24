@@ -30,7 +30,7 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        share_demand = self.calculate_share_demand(self, self.model) #self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
+        share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
         #if self.agent_id == 5: print(share_demand)
         trade_shares = share_demand - self.stock_shares
         # trade_price = self.calculate_trade_price()
@@ -56,8 +56,8 @@ class MarketAgent(Agent):
 
 
 class MarketModel(Model):
-    def __init__(self, n_agents, init_rf = 0.02, n_shares = 1000, glob_risk_aversion = 0.5, init_price = 50, equil_dividend = 0.2,
-                 dividend_vol = 0.2, price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
+    def __init__(self, n_agents, init_rf = 0.02, n_shares = 1000, glob_risk_aversion = 0.5, init_price = 50,
+                 init_dividend = 5, dividend_growth=0.01, dividend_vol = 0.2, price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
         super().__init__()
         self.running = True
         self.n_agents = n_agents
@@ -67,9 +67,10 @@ class MarketModel(Model):
         self.max_short = max_short
         self.max_long = max_long
         self.current_step = 0
+        self.dt = 1/252  # 1 business day time step
         ###self.matched_trades = []
-        self.stock = Stock(ticker="STK", model=self, initial_price = init_price, outstanding_shares = n_shares,
-                           equil_dividend = equil_dividend, dividend_vol = dividend_vol)
+        self.stock = Stock(ticker="STK", model=self, init_price = init_price, outstanding_shares = n_shares,
+                           init_dividend = init_dividend, dividend_growth = dividend_growth, dividend_vol = dividend_vol)
         self.schedule = RandomActivation(self)
         self.order_book = OrderBook()
         for i in range(self.n_agents):
