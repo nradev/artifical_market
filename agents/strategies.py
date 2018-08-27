@@ -6,9 +6,10 @@ def zero_information(self, model):#(self, price, dividend, rf_rate, risk_aversio
     dividend = model.stock.dividend
     rf_rate = model.rf_rate
     risk_aversion = model.glob_risk_aversion
+    dt = model.dt
     sigma_sq = 0.002
-    exp_p_d = random.uniform(0.9, 1.1) * (price + dividend)
-    share_demand = (exp_p_d - (1 + rf_rate) * price) / (risk_aversion * sigma_sq)
+    exp_p_d = random.uniform(0.98, 1.02) * price + dividend * dt
+    share_demand = (exp_p_d - (1 + rf_rate) ** dt * price) / (risk_aversion * sigma_sq) # *dt?
     return share_demand
 
 def get_matched_rule_params(agent, model):
@@ -23,6 +24,6 @@ def genetic(self, model):
     risk_aversion = model.glob_risk_aversion
 
     a, b, sigma_sq = get_matched_rule_params(self, model)
-    exp_p_d = a * (price + dividend) + b
-    share_demand = (exp_p_d - (1 + rf_rate) * price) / (risk_aversion * sigma_sq)
+    exp_p_d = a * (price + dividend * model.dt) + b
+    share_demand = (exp_p_d - (1 + rf_rate) ** model.dt * price) / (risk_aversion * sigma_sq)
     return share_demand

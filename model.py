@@ -32,12 +32,17 @@ class MarketAgent(Agent):
 
     def rebalance(self):
         share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
-        #if self.agent_id == 5: print(share_demand)
         trade_shares = share_demand - self.stock_shares
         if trade_shares > 0:
-            self.order_trade(min(trade_shares, self.model.max_long*self.model.stock.outstanding_shares, (self.cash/self.model.stock.price)*0.95))
-        if trade_shares < 0:
-            self.order_trade(max(trade_shares, -self.model.max_short*self.model.stock.outstanding_shares, -(self.cash/self.model.stock.price)*0.95))
+            trade_shares = min(trade_shares, self.model.max_long*self.model.stock.outstanding_shares - self.stock_shares,
+                               (self.cash/self.model.stock.price)*0.95)
+        elif trade_shares < 0:
+            trade_shares = max(trade_shares, -(self.model.max_short*self.model.stock.outstanding_shares - self.stock_shares),
+                               -(self.cash/self.model.stock.price)*0.95)
+        else: return
+        self.order_trade(trade_shares)
+        if (self.agent_id == 5 and self.model.current_step % 1 == 0): print(int(self.stock_shares), int(share_demand - self.stock_shares),
+                                                                             int(trade_shares), int(self.cash))
 
     def order_trade(self, num_shares):
         if num_shares > 0:
