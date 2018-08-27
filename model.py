@@ -1,7 +1,6 @@
-import random
-from math import exp
-from environment.core.components import Agent, Model
-from environment.core.scheduler import RandomActivation
+from mesa import Agent, Model
+from mesa.time import RandomActivation
+from environment.core.datacollection import ModDataCollector
 from environment.order import Order, OrderBook
 from environment.instruments import Stock
 from agents.strategies import zero_information, genetic
@@ -21,6 +20,9 @@ class MarketAgent(Agent):
         elif strategy == 'genetic':
             self.calculate_share_demand = genetic
             self.rule_book = RuleBook(100)
+        self.share_demand = 0
+        self.target_shares = 0
+        self.trade_shares = 0
 
     def step(self):
         self.recalculate_portfolio()
@@ -31,18 +33,18 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
-        trade_shares = share_demand - self.stock_shares
-        if trade_shares > 0:
-            trade_shares = min(trade_shares, self.model.max_long*self.model.stock.outstanding_shares - self.stock_shares,
+        self.share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
+        self.target_shares = self.share_demand - self.stock_shares
+        if self.target_shares > 0:
+            self.trade_shares = min(self.target_shares, self.model.max_long*self.model.stock.outstanding_shares - self.stock_shares,
                                (self.cash/self.model.stock.price)*0.95)
-        elif trade_shares < 0:
-            trade_shares = max(trade_shares, -(self.model.max_short*self.model.stock.outstanding_shares - self.stock_shares),
+        elif self.target_shares < 0:
+            self.trade_shares = max(self.target_shares, -(self.model.max_short*self.model.stock.outstanding_shares - self.stock_shares),
                                -(self.cash/self.model.stock.price)*0.95)
         else: return
-        self.order_trade(trade_shares)
-        if (self.agent_id == 5 and self.model.current_step % 1 == 0): print(int(self.stock_shares), int(share_demand - self.stock_shares),
-                                                                             int(trade_shares), int(self.cash))
+        self.order_trade(self.trade_shares)
+        if (self.agent_id == 5 and self.model.current_step % 1 == 0): print(int(self.stock_shares), int(self.share_demand - self.stock_shares),
+                                                                             int(self.trade_shares), int(self.cash))
 
     def order_trade(self, num_shares):
         if num_shares > 0:
@@ -50,10 +52,8 @@ class MarketAgent(Agent):
         else:
             side = 'sell'
             num_shares = -num_shares
-
         order = Order(self.agent_id, self.order_count, side, 'market', num_shares, self.model.current_step)
         self.model.order_book.add_order(order)
-
         if self.order_count < 50:
             self.order_count += 1
         else:
@@ -82,9 +82,14 @@ class MarketModel(Model):
             a = MarketAgent(i, self, n_shares/n_agents, 1000, 'zero_information')
             self.schedule.add(a)
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
-        self.global_wealth_hist = {0: self.global_wealth}
+        self.datacollector = ModDataCollector(
+            model_reporters={"Global Wealth": "global_wealth", "Price": "stock.price", "Dividend": "stock.dividend"},
+            agent_reporters={"Wealth": "wealth", "Cash": "cash", "Stock Weight": "stock_weight",
+                             "Stock Shares": "stock_shares", "Demand": "share_demand",
+                             "Target Trade": "target_shares", "Actual Trade": "trade_shares"})
 
     def step(self):
+        self.datacollector.collect(self)
         self.schedule.step()
         ###self.matched_trades = self.order_book.get_matched_trades()
         self.settle()
@@ -97,7 +102,6 @@ class MarketModel(Model):
             for agent in self.schedule.agents:
                 agent.cash += (self.stock.dividend/4) * agent.stock_shares
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
-        self.global_wealth_hist[self.current_step] = self.global_wealth
 
     def settle(self):
         sells = [x for x in self.order_book.orders if x.side == 'sell']
@@ -115,7 +119,6 @@ class MarketModel(Model):
         buy_ratio = (min(agg_buys, available_sells) / agg_buys)
         sell_ratio = (min(agg_sells, available_buys) / agg_sells)
 
-        #print(agg_buys, agg_sells)
         self.stock.price = self.stock.price * (1 + self.eta * (agg_buys - agg_sells)) # find a better price mechanism
 
         for order in self.order_book.orders:
@@ -130,6 +133,7 @@ class MarketModel(Model):
                 agent.cash += trade_quantity * self.stock.price
 
         self.order_book.clear()
+
 
 
     # def settle(self):

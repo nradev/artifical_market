@@ -22,7 +22,7 @@ class Stock:
         self.price_MA_50_hist = {0: init_price}
         self.price_MA_100_hist = {0: init_price}
         self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend
-        self.rule_string = ""
+        # self.rule_string = ""
         # for v in [0.25, 0.50, 0.75, 0.875, 1.0, 1.125]:
         #     self.rule_string += "1" if self.PID_ratio > v else "0"
         # self.rule_string += "1" if self.price_MA_5 < model.stock.price else "0"
