@@ -53,7 +53,8 @@ class Stock:
 
     def update_dividend(self):
         from random import gauss
-        self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*(1/4) + self.dividend_vol*sqrt(1/4)*gauss(0, 1))
+        self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*(1/4)
+                             + self.dividend_vol*sqrt(1/4)*gauss(0, 3))
         #self.dividend = self.init_dividend + 0.95 * (self.dividend - self.init_dividend) + gauss(0, self.dividend_vol)
         self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend
 

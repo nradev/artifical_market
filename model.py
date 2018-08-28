@@ -1,3 +1,4 @@
+from random import uniform
 from mesa import Agent, Model
 from mesa.time import RandomActivation
 from environment.core.datacollection import ModDataCollector
@@ -17,9 +18,11 @@ class MarketAgent(Agent):
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
         if strategy == 'zero_information':
             self.calculate_share_demand = zero_information
+            self.exp_p_d = self.model.stock.price * uniform(0.98, 1.02)
         elif strategy == 'genetic':
             self.calculate_share_demand = genetic
             self.rule_book = RuleBook(100)
+            self.exp_p_d = self.model.stock.price
         self.share_demand = 0
         self.target_shares = 0
         self.trade_shares = 0
@@ -35,16 +38,17 @@ class MarketAgent(Agent):
     def rebalance(self):
         self.share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
         self.target_shares = self.share_demand - self.stock_shares
+        max_leverage = 1
+        trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares) #* 0.9
+        trade_for_min_w = -((self.wealth * max_leverage) / self.model.stock.price + self.stock_shares) #* 0.9
         if self.target_shares > 0:
-            self.trade_shares = min(self.target_shares, self.model.max_long*self.model.stock.outstanding_shares - self.stock_shares,
-                               (self.cash/self.model.stock.price)*0.95)
+            self.trade_shares = min(self.target_shares, self.model.max_long*self.model.stock.outstanding_shares
+                                    - self.stock_shares, trade_for_max_w)#(self.cash/self.model.stock.price)*0.95)
         elif self.target_shares < 0:
-            self.trade_shares = max(self.target_shares, -(self.model.max_short*self.model.stock.outstanding_shares - self.stock_shares),
-                               -(self.cash/self.model.stock.price)*0.95)
+            self.trade_shares = max(self.target_shares, -(self.model.max_short*self.model.stock.outstanding_shares
+                                    + self.stock_shares), trade_for_min_w)#-(self.cash/self.model.stock.price)*0.95)
         else: return
         self.order_trade(self.trade_shares)
-        if (self.agent_id == 5 and self.model.current_step % 1 == 0): print(int(self.stock_shares), int(self.share_demand - self.stock_shares),
-                                                                             int(self.trade_shares), int(self.cash))
 
     def order_trade(self, num_shares):
         if num_shares > 0:
@@ -82,11 +86,21 @@ class MarketModel(Model):
             a = MarketAgent(i, self, n_shares/n_agents, 1000, 'zero_information')
             self.schedule.add(a)
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
+        self.agg_sells = 0
+        self.agg_buys = 0
+        self.available_sells = 0
+        self.available_buys = 0
+        self.buy_ratio = 0
+        self.sell_ratio = 0
+        
         self.datacollector = ModDataCollector(
-            model_reporters={"Global Wealth": "global_wealth", "Price": "stock.price", "Dividend": "stock.dividend"},
+            model_reporters={"Global Wealth": "global_wealth", "Price": "stock.price", "Dividend": "stock.dividend",
+                             "Agg Sells": "agg_sells", "Agg Buys": "agg_buys", "Av Sells": "available_sells",
+                             "Av Buys": "available_buys", "Buy Ratio": "buy_ratio", "Sell Ratio": "sell_ratio"},
             agent_reporters={"Wealth": "wealth", "Cash": "cash", "Stock Weight": "stock_weight",
                              "Stock Shares": "stock_shares", "Demand": "share_demand",
-                             "Target Trade": "target_shares", "Actual Trade": "trade_shares"})
+                             "Target Trade": "target_shares", "Actual Trade": "trade_shares",
+                             "Price Expectation": "exp_p_d"})
 
     def step(self):
         self.datacollector.collect(self)
@@ -110,25 +124,26 @@ class MarketModel(Model):
         if not (sells and buys):
             return
 
-        agg_sells = sum([x.quantity for x in sells])
-        agg_buys = sum([x.quantity for x in buys])
+        self.agg_sells = sum([x.quantity for x in sells])
+        self.agg_buys = sum([x.quantity for x in buys])
 
-        available_sells = min(agg_sells, self.stock.outstanding_shares) #add Inventory
-        available_buys = min(agg_buys, self.stock.outstanding_shares)
+        self.available_sells = min(self.agg_sells, self.stock.outstanding_shares) #add Inventory
+        self.available_buys = min(self.agg_buys, self.stock.outstanding_shares)
 
-        buy_ratio = (min(agg_buys, available_sells) / agg_buys)
-        sell_ratio = (min(agg_sells, available_buys) / agg_sells)
+        self.buy_ratio = (min(self.agg_buys, self.available_sells) / self.agg_buys)
+        self.sell_ratio = (min(self.agg_sells, self.available_buys) / self.agg_sells)
 
-        self.stock.price = self.stock.price * (1 + self.eta * (agg_buys - agg_sells)) # find a better price mechanism
+        self.stock.price = self.stock.price * (1 + self.eta * (self.agg_buys - self.agg_sells)) # find a better price mechanism
 
         for order in self.order_book.orders:
-            agent = self.schedule.agents[order.agent_id]
+            ### need to prelist
+            agent = [agent for agent in self.schedule.agents if agent.agent_id==order.agent_id][0]
             if order.side == 'buy':
-                trade_quantity = buy_ratio * order.quantity
+                trade_quantity = self.buy_ratio * order.quantity
                 agent.stock_shares += trade_quantity
                 agent.cash -= trade_quantity * self.stock.price
             if order.side == 'sell':
-                trade_quantity = sell_ratio * order.quantity
+                trade_quantity = self.sell_ratio * order.quantity
                 agent.stock_shares -= trade_quantity
                 agent.cash += trade_quantity * self.stock.price
 
