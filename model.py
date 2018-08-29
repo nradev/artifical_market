@@ -1,6 +1,6 @@
 from random import uniform
 from mesa import Agent, Model
-from mesa.time import RandomActivation
+from mesa.time import BaseScheduler
 from environment.core.datacollection import ModDataCollector
 from environment.order import Order, OrderBook
 from environment.instruments import Stock
@@ -38,7 +38,7 @@ class MarketAgent(Agent):
     def rebalance(self):
         self.share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
         self.target_shares = self.share_demand - self.stock_shares
-        max_leverage = 1
+        max_leverage = 0.2
         trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares) #* 0.9
         trade_for_min_w = -((self.wealth * max_leverage) / self.model.stock.price + self.stock_shares) #* 0.9
         if self.target_shares > 0:
@@ -65,7 +65,7 @@ class MarketAgent(Agent):
 
 
 class MarketModel(Model):
-    def __init__(self, n_agents, init_rf = 0.02, n_shares = 1000, glob_risk_aversion = 0.5, init_price = 50,
+    def __init__(self, n_agents, init_rf = 0.02, n_shares = 1000, init_agent_wealth=1000, glob_risk_aversion = 0.5, init_price = 50,
                  init_dividend = 5, dividend_growth=0.01, dividend_vol = 0.2, price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
         super().__init__()
         self.running = True
@@ -80,10 +80,10 @@ class MarketModel(Model):
         ###self.matched_trades = []
         self.stock = Stock(ticker="STK", model=self, init_price = init_price, outstanding_shares = n_shares,
                            init_dividend = init_dividend, dividend_growth = dividend_growth, dividend_vol = dividend_vol)
-        self.schedule = RandomActivation(self)
+        self.schedule = BaseScheduler(self)
         self.order_book = OrderBook()
         for i in range(self.n_agents):
-            a = MarketAgent(i, self, n_shares/n_agents, 1000, 'zero_information')
+            a = MarketAgent(i, self, n_shares/n_agents, init_agent_wealth, 'zero_information')
             self.schedule.add(a)
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
         self.agg_sells = 0
@@ -121,11 +121,11 @@ class MarketModel(Model):
         sells = [x for x in self.order_book.orders if x.side == 'sell']
         buys = [x for x in self.order_book.orders if x.side == 'buy']
 
-        if not (sells and buys):
-            return
-
         self.agg_sells = sum([x.quantity for x in sells])
         self.agg_buys = sum([x.quantity for x in buys])
+
+        if (self.agg_sells==0 or self.agg_buys==0):
+            return
 
         self.available_sells = min(self.agg_sells, self.stock.outstanding_shares) #add Inventory
         self.available_buys = min(self.agg_buys, self.stock.outstanding_shares)
@@ -136,8 +136,8 @@ class MarketModel(Model):
         self.stock.price = self.stock.price * (1 + self.eta * (self.agg_buys - self.agg_sells)) # find a better price mechanism
 
         for order in self.order_book.orders:
-            ### need to prelist
-            agent = [agent for agent in self.schedule.agents if agent.agent_id==order.agent_id][0]
+            ### need to prelist if using RandomScheduler
+            agent = self.schedule.agents[order.agent_id]
             if order.side == 'buy':
                 trade_quantity = self.buy_ratio * order.quantity
                 agent.stock_shares += trade_quantity

@@ -1,10 +1,14 @@
+import time
 import matplotlib.pyplot as plt
 
 from model import MarketModel
 
+time.clock()
+
 model = MarketModel(n_agents=200,
-                    init_rf=0.01,
+                    init_rf=0.001,
                     n_shares=1000,
+                    init_agent_wealth=1000,#(4*5*1000)/200,
                     glob_risk_aversion=5,
                     init_price=50,
                     init_dividend=2,
@@ -13,8 +17,10 @@ model = MarketModel(n_agents=200,
                     price_adj_speed=0.000001,
                     max_short=0.01,
                     max_long=0.02)
-for i in range(100):
+for i in range(1000):
     model.step()
+
+print(time.clock())
 #
 # vs = [v for k, v in model.stock.price_hist.items()]
 # ks = [k for k, v in model.stock.price_hist.items()]
@@ -26,8 +32,7 @@ for i in range(100):
 model_data = model.datacollector.get_model_vars_dataframe()
 agent_data = model.datacollector.get_agent_vars_dataframe()
 print(model_data)
-print(agent_data.xs(0, level="AgentID")[["Demand", "Stock Shares", "Target Trade", "Actual Trade", "Cash"]])#,"Cash", "Stock Weight", "Stock Shares",
-                                        #"Demand", "Target Trade", "Actual Trade"])
+print(agent_data.xs(0, level="AgentID")[["Demand", "Stock Shares", "Target Trade", "Actual Trade", "Cash"]])
 
 lw = 1
 plt.figure(100, facecolor='w', figsize=(10,11.5) ,frameon=False)
@@ -63,4 +68,5 @@ for agent in range(1):
     #plt.plot(agent_data.xs(agent, level="AgentID")["Demand"], linewidth=lw)
     plt.plot(agent_data.xs(agent, level="AgentID")["Target Trade"], linewidth=lw)
     plt.plot(agent_data.xs(agent, level="AgentID")["Actual Trade"], linewidth=lw+0.5)
+print(time.clock())
 plt.show()
