@@ -7,10 +7,10 @@ def zero_information(agent, model):#(self, price, dividend, rf_rate, risk_aversi
     rf_rate = model.rf_rate
     risk_aversion = model.glob_risk_aversion
     dt = model.dt
-    sigma_sq = 0.002
+    sigma_sq = model.stock.dividend_vol ** 2
     # agent.exp_p_d = 0.9 * agent.exp_p_d + 0.1 * random.uniform(0.98, 1.02) * price + dividend * dt
     # share_demand = (agent.exp_p_d - ((1 + rf_rate) ** dt) * price) / (risk_aversion * sigma_sq * dt)
-    agent.exp_p_d = 0.9 * agent.exp_p_d + 0.1 * random.uniform(0.98, 1.02) * price + dividend * dt
+    agent.exp_p_d = 0.9 * agent.exp_p_d + 0.1 * (random.uniform(0.98, 1.02) * (price + dividend))
     share_demand = (agent.exp_p_d - (1 + rf_rate) * price) / (risk_aversion * sigma_sq)
     return share_demand
 

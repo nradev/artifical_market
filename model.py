@@ -1,4 +1,4 @@
-from random import uniform
+import random
 from mesa import Agent, Model
 from mesa.time import BaseScheduler
 from environment.core.datacollection import ModDataCollector
@@ -8,7 +8,7 @@ from agents.strategies import zero_information, genetic
 from agents.genetic import RuleBook
 
 class MarketAgent(Agent):
-    def __init__(self, agent_id, model, init_shares, init_wealth, strategy = 'zero_information'):
+    def __init__(self, agent_id, model, init_shares, init_wealth, strategy='zero_information',  particip_rate=1):
         super().__init__(agent_id, model)
         self.agent_id = agent_id
         self.order_count = 0
@@ -18,35 +18,39 @@ class MarketAgent(Agent):
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
         if strategy == 'zero_information':
             self.calculate_share_demand = zero_information
-            self.exp_p_d = self.model.stock.price * uniform(0.98, 1.02)
+            self.exp_p_d = (self.model.stock.price + self.model.stock.dividend) #* random.uniform(0.98, 1.02)
+            #self.exp_p_d = self.model.stock.price * uniform(0.98, 1.02)
+            #self.exp_p_d = (self.model.stock.dividend/self.model.rf_rate) * uniform(0.98, 1.02)
         elif strategy == 'genetic':
             self.calculate_share_demand = genetic
             self.rule_book = RuleBook(100)
-            self.exp_p_d = self.model.stock.price
+            self.exp_p_d = self.model.stock.price + self.model.stock.dividend
+        self. particip_rate =  particip_rate
         self.share_demand = 0
         self.target_shares = 0
         self.trade_shares = 0
 
     def step(self):
         self.recalculate_portfolio()
-        self.rebalance()
+        if random.random() < self. particip_rate:
+            self.rebalance()
 
     def recalculate_portfolio(self):
         self.wealth = self.cash + self.stock_shares * self.model.stock.price
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        self.share_demand = self.calculate_share_demand(self, self.model)  # self.model.stock.price, self.model.stock.dividend, self.model.rf_rate, self.model.glob_risk_aversion)
+        self.share_demand = self.calculate_share_demand(self, self.model)
         self.target_shares = self.share_demand - self.stock_shares
         max_leverage = 0.2
-        trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares) #* 0.9
-        trade_for_min_w = -((self.wealth * max_leverage) / self.model.stock.price + self.stock_shares) #* 0.9
+        trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares)
+        trade_for_min_w = -((self.wealth * max_leverage) / self.model.stock.price + self.stock_shares)
         if self.target_shares > 0:
             self.trade_shares = min(self.target_shares, self.model.max_long*self.model.stock.outstanding_shares
-                                    - self.stock_shares, trade_for_max_w)#(self.cash/self.model.stock.price)*0.95)
+                                    - self.stock_shares, trade_for_max_w)
         elif self.target_shares < 0:
             self.trade_shares = max(self.target_shares, -(self.model.max_short*self.model.stock.outstanding_shares
-                                    + self.stock_shares), trade_for_min_w)#-(self.cash/self.model.stock.price)*0.95)
+                                    + self.stock_shares), trade_for_min_w)
         else: return
         self.order_trade(self.trade_shares)
 
@@ -65,8 +69,10 @@ class MarketAgent(Agent):
 
 
 class MarketModel(Model):
-    def __init__(self, n_agents, init_rf = 0.02, n_shares = 1000, init_agent_wealth=1000, glob_risk_aversion = 0.5, init_price = 50,
-                 init_dividend = 5, dividend_growth=0.01, dividend_vol = 0.2, price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
+    def __init__(self, n_agents, dt = 1/252, init_rf = 0.02, n_shares = 1000, init_agent_wealth=1000,
+                 glob_risk_aversion = 0.5,  agent_particip_rate=1, init_price = 50, init_dividend = 5,
+                 dividend_freq = 4, dividend_growth=0.01, dividend_vol = 0.2, price_adj_speed = 0.1,
+                 max_short = 0.0001, max_long = 0.02):
         super().__init__()
         self.running = True
         self.n_agents = n_agents
@@ -76,14 +82,16 @@ class MarketModel(Model):
         self.max_short = max_short
         self.max_long = max_long
         self.current_step = 0
-        self.dt = 1/252  # 1 business day time step
+        self.dt = dt
         ###self.matched_trades = []
         self.stock = Stock(ticker="STK", model=self, init_price = init_price, outstanding_shares = n_shares,
-                           init_dividend = init_dividend, dividend_growth = dividend_growth, dividend_vol = dividend_vol)
+                           init_dividend = init_dividend, dividend_freq = dividend_freq,
+                           dividend_growth = dividend_growth, dividend_vol = dividend_vol)
         self.schedule = BaseScheduler(self)
         self.order_book = OrderBook()
         for i in range(self.n_agents):
-            a = MarketAgent(i, self, n_shares/n_agents, init_agent_wealth, 'zero_information')
+            init_shares = n_shares / n_agents
+            a = MarketAgent(i, self, init_shares, init_agent_wealth, 'zero_information',  agent_particip_rate)
             self.schedule.add(a)
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
         self.agg_sells = 0
@@ -92,7 +100,6 @@ class MarketModel(Model):
         self.available_buys = 0
         self.buy_ratio = 0
         self.sell_ratio = 0
-        
         self.datacollector = ModDataCollector(
             model_reporters={"Global Wealth": "global_wealth", "Price": "stock.price", "Dividend": "stock.dividend",
                              "Agg Sells": "agg_sells", "Agg Buys": "agg_buys", "Av Sells": "available_sells",
@@ -111,10 +118,10 @@ class MarketModel(Model):
         self.stock.update_data(self.current_step, self.stock.price)
         for agent in self.schedule.agents:
             agent.cash *= (1 + self.rf_rate) ** self.dt
-        if self.current_step % ((self.dt ** -1)/4) == 0:
+        if self.current_step % ((self.dt ** -1)/self.stock.dividend_freq) == 0:
             self.stock.update_dividend()
             for agent in self.schedule.agents:
-                agent.cash += (self.stock.dividend/4) * agent.stock_shares
+                agent.cash += (self.stock.dividend/self.stock.dividend_freq) * agent.stock_shares
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
 
     def settle(self):

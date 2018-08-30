@@ -2,7 +2,7 @@ from math import exp, sqrt
 
 class Stock:
     def __init__(self, ticker, model, init_price=10, outstanding_shares=1000,
-                 init_dividend=0.2, dividend_growth = 0.01, dividend_vol=0.2):
+                 init_dividend=0.2, dividend_freq = 4, dividend_growth = 0.01, dividend_vol=0.2):
         self.ticker = ticker
         self.model = model
         self.price = init_price
@@ -10,6 +10,7 @@ class Stock:
         self.price_hist = {0: init_price}
         self.market_cap = self.price * outstanding_shares
         self.init_dividend = init_dividend
+        self.dividend_freq = dividend_freq
         self.dividend_growth = dividend_growth
         self.dividend_vol = dividend_vol
         self.dividend = init_dividend
@@ -53,9 +54,13 @@ class Stock:
 
     def update_dividend(self):
         from random import gauss
-        self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*(1/4)
-                             + self.dividend_vol*sqrt(1/4)*gauss(0, 3))
-        #self.dividend = self.init_dividend + 0.95 * (self.dividend - self.init_dividend) + gauss(0, self.dividend_vol)
+        # Stochastic Dividend
+        # self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*(1/self.dividend_freq)
+        #                      + self.dividend_vol*sqrt(1/self.dividend_freq)*gauss(0, 3))
+
+        # Mean Reverting Dividend
+        self.dividend = self.init_dividend + 0.95 * (self.dividend - self.init_dividend) \
+                        + gauss(0, self.dividend_vol*self.dividend*self.model.dt)
         self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend
 
     def update_rule_string(self):
