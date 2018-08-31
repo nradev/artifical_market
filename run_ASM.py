@@ -1,10 +1,27 @@
 import time
 import matplotlib.pyplot as plt
-
 from model import MarketModel
 
 time.clock()
 
+# zero information
+# model = MarketModel(n_agents=200,
+#                     dt=1/252, # 1 business day time step
+#                     init_rf=0.018,
+#                     n_shares=1000,
+#                     init_agent_wealth=1000,#(4*5*1000)/200,
+#                     glob_risk_aversion=1.5,
+#                     agent_particip_rate=1,
+#                     init_price=100,
+#                     init_dividend=2,
+#                     dividend_freq=4,
+#                     dividend_growth=0.01,
+#                     dividend_vol=0.15,
+#                     div_noise_sig=0.1,
+#                     price_adj_speed=0.0000042,
+#                     max_short=0.01,
+#                     max_long=0.02)
+# 10% value 90% zero inf
 model = MarketModel(n_agents=200,
                     dt=1/252, # 1 business day time step
                     init_rf=0.018,
@@ -15,11 +32,13 @@ model = MarketModel(n_agents=200,
                     init_price=100,
                     init_dividend=2,
                     dividend_freq=4,
-                    dividend_growth=0.05,
+                    dividend_growth=0.01,
                     dividend_vol=0.15,
+                    div_noise_sig=0.1,
                     price_adj_speed=0.0000042,
                     max_short=0.01,
                     max_long=0.02)
+
 for i in range(1000):
     model.step()
 
@@ -68,7 +87,7 @@ plt.plot(model_data[series[7]], 'g', linewidth=lw)
 plt.plot(model_data[series[8]], 'r', linewidth=lw)
 plt.title("Sell/Buy Ratios")
 
-for agent in range(1):
+for agent in [0, 100]:
     plt.figure(agent, facecolor='w', figsize=(10,11.5) ,frameon=False)
     plt.subplot(511)
     plt.plot(agent_data.xs(agent, level="AgentID")["Wealth"], linewidth=lw)

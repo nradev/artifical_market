@@ -4,11 +4,11 @@ from mesa.time import BaseScheduler
 from environment.core.datacollection import ModDataCollector
 from environment.order import Order, OrderBook
 from environment.instruments import Stock
-from agents.strategies import zero_information, genetic
-from agents.genetic import RuleBook
+from agents.strategies import ZeroInformation, Value
 
 class MarketAgent(Agent):
-    def __init__(self, agent_id, model, init_shares, init_wealth, strategy='zero_information',  particip_rate=1):
+    def __init__(self, agent_id, model, init_shares, init_wealth, risk_aversion,
+                 strategy='zero_information', particip_rate=1):
         super().__init__(agent_id, model)
         self.agent_id = agent_id
         self.order_count = 0
@@ -16,19 +16,15 @@ class MarketAgent(Agent):
         self.stock_shares = init_shares
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
-        if strategy == 'zero_information':
-            self.calculate_share_demand = zero_information
-            self.exp_p_d = (self.model.stock.price + self.model.stock.dividend) #* random.uniform(0.98, 1.02)
-            #self.exp_p_d = self.model.stock.price * uniform(0.98, 1.02)
-            #self.exp_p_d = (self.model.stock.dividend/self.model.rf_rate) * uniform(0.98, 1.02)
-        elif strategy == 'genetic':
-            self.calculate_share_demand = genetic
-            self.rule_book = RuleBook(100)
-            self.exp_p_d = self.model.stock.price + self.model.stock.dividend
-        self. particip_rate =  particip_rate
+        self.risk_aversion = risk_aversion
         self.share_demand = 0
         self.target_shares = 0
         self.trade_shares = 0
+        self.particip_rate =  particip_rate
+        if strategy == 'zero_information':
+            self.strategy = ZeroInformation(self)
+        elif strategy == 'value':
+            self.strategy = Value(self)
 
     def step(self):
         self.recalculate_portfolio()
@@ -40,7 +36,7 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        self.share_demand = self.calculate_share_demand(self, self.model)
+        self.share_demand = self.strategy.calc_share_demand()
         self.target_shares = self.share_demand - self.stock_shares
         max_leverage = 0.2
         trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares)
@@ -71,8 +67,8 @@ class MarketAgent(Agent):
 class MarketModel(Model):
     def __init__(self, n_agents, dt = 1/252, init_rf = 0.02, n_shares = 1000, init_agent_wealth=1000,
                  glob_risk_aversion = 0.5,  agent_particip_rate=1, init_price = 50, init_dividend = 5,
-                 dividend_freq = 4, dividend_growth=0.01, dividend_vol = 0.2, price_adj_speed = 0.1,
-                 max_short = 0.0001, max_long = 0.02):
+                 dividend_freq = 4, dividend_growth=0.01, dividend_vol = 0.2, div_noise_sig=0.1,
+                 price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
         super().__init__()
         self.running = True
         self.n_agents = n_agents
@@ -86,13 +82,19 @@ class MarketModel(Model):
         ###self.matched_trades = []
         self.stock = Stock(ticker="STK", model=self, init_price = init_price, outstanding_shares = n_shares,
                            init_dividend = init_dividend, dividend_freq = dividend_freq,
-                           dividend_growth = dividend_growth, dividend_vol = dividend_vol)
+                           dividend_growth = dividend_growth, dividend_vol = dividend_vol,
+                           div_noise_sig=div_noise_sig)
         self.schedule = BaseScheduler(self)
         self.order_book = OrderBook()
+
         for i in range(self.n_agents):
             init_shares = n_shares / n_agents
-            a = MarketAgent(i, self, init_shares, init_agent_wealth, 'zero_information',  agent_particip_rate)
+            if i > 75: strategy = 'zero_information'
+            else: strategy = 'value'
+            a = MarketAgent(i, self, init_shares, init_agent_wealth, glob_risk_aversion,
+                            strategy, agent_particip_rate)
             self.schedule.add(a)
+
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
         self.agg_sells = 0
         self.agg_buys = 0
@@ -107,7 +109,7 @@ class MarketModel(Model):
             agent_reporters={"Wealth": "wealth", "Cash": "cash", "Stock Weight": "stock_weight",
                              "Stock Shares": "stock_shares", "Demand": "share_demand",
                              "Target Trade": "target_shares", "Actual Trade": "trade_shares",
-                             "Price Expectation": "exp_p_d"})
+                             "Price Expectation": "strategy.exp_p_d"})
 
     def step(self):
         self.datacollector.collect(self)
