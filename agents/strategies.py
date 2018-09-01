@@ -47,6 +47,22 @@ class Value(Strategy):
         return self.exp_p_d
 
 
+class Momentum(Strategy):
+    def __init__(self, agent):
+        super().__init__(agent)
+        self.strat_name = "Momentum"
+        self.prev_p_d = self.stock.price + self.stock.dividend
+
+    def recalc_exp_p_d(self):
+        phi = random.uniform(0, 0.02)
+        curr_p_d = self.stock.price + self.stock.dividend
+        if curr_p_d == self.prev_p_d: self.exp_p_d = self.stock.price + self.stock.dividend
+        elif curr_p_d > self.prev_p_d: self.exp_p_d = (self.stock.price + self.stock.dividend) * (1 + phi)
+        elif curr_p_d < self.prev_p_d: self.exp_p_d = (self.stock.price + self.stock.dividend) * (1 - phi)
+        self.prev_p_d = self.stock.price + self.stock.dividend
+        return self.exp_p_d
+
+
 def get_matched_rule_params(agent, model):
     matched_rules = [rule for rule in agent.rule_book.rules if rule.match_to_market(model.stock)]
     best_rule = [rule for rule in matched_rules if rule.strength == max(rule.strength for rule in matched_rules)][0]

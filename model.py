@@ -4,7 +4,7 @@ from mesa.time import BaseScheduler
 from environment.core.datacollection import ModDataCollector
 from environment.order import Order, OrderBook
 from environment.instruments import Stock
-from agents.strategies import ZeroInformation, Value
+from agents.strategies import ZeroInformation, Value, Momentum
 
 class MarketAgent(Agent):
     def __init__(self, agent_id, model, init_shares, init_wealth, risk_aversion,
@@ -25,6 +25,8 @@ class MarketAgent(Agent):
             self.strategy = ZeroInformation(self)
         elif strategy == 'value':
             self.strategy = Value(self)
+        elif strategy == 'momentum':
+            self.strategy = Momentum(self)
 
     def step(self):
         self.recalculate_portfolio()
@@ -89,8 +91,9 @@ class MarketModel(Model):
 
         for i in range(self.n_agents):
             init_shares = n_shares / n_agents
-            if i > 75: strategy = 'zero_information'
-            else: strategy = 'value'
+            if i < 50: strategy = 'value'
+            elif i < 100: strategy = 'momentum'
+            else: strategy = 'zero_information'
             a = MarketAgent(i, self, init_shares, init_agent_wealth, glob_risk_aversion,
                             strategy, agent_particip_rate)
             self.schedule.add(a)
