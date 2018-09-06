@@ -67,10 +67,10 @@ class MarketAgent(Agent):
 
 
 class MarketModel(Model):
-    def __init__(self, n_agents, dt = 1/252, init_rf = 0.02, n_shares = 1000, init_agent_wealth=1000,
-                 glob_risk_aversion = 0.5,  agent_particip_rate=1, init_price = 50, init_dividend = 5,
-                 dividend_freq = 4, dividend_growth=0.01, dividend_vol = 0.2, div_noise_sig=0.1,
-                 price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
+    def __init__(self, n_agents, population_composition={'zero_information': 1},dt = 1/252, init_rf = 0.02,
+                 n_shares = 1000, init_agent_wealth=1000, glob_risk_aversion = 0.5,  agent_particip_rate=1,
+                 init_price = 50, init_dividend = 5, dividend_freq = 4, dividend_growth=0.01, dividend_vol = 0.2,
+                 div_noise_sig=0.1, price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
         super().__init__()
         self.running = True
         self.n_agents = n_agents
@@ -88,15 +88,23 @@ class MarketModel(Model):
                            div_noise_sig=div_noise_sig)
         self.schedule = BaseScheduler(self)
         self.order_book = OrderBook()
+        agent_id = 0
+        for key in population_composition:
+            for i in range(int(population_composition[key] * self.n_agents)):
+                init_shares = n_shares / n_agents
+                a = MarketAgent(agent_id, self, init_shares, init_agent_wealth, glob_risk_aversion,
+                                key, agent_particip_rate)
+                self.schedule.add(a)
+                agent_id += 1
 
-        for i in range(self.n_agents):
-            init_shares = n_shares / n_agents
-            if i < 50: strategy = 'value'
-            elif i < 100: strategy = 'momentum'
-            else: strategy = 'zero_information'
-            a = MarketAgent(i, self, init_shares, init_agent_wealth, glob_risk_aversion,
-                            strategy, agent_particip_rate)
-            self.schedule.add(a)
+        # for i in range(self.n_agents):
+        #     init_shares = n_shares / n_agents
+        #     if i < 50: strategy = 'value'
+        #     elif i < 100: strategy = 'momentum'
+        #     else: strategy = 'zero_information'
+        #     a = MarketAgent(i, self, init_shares, init_agent_wealth, glob_risk_aversion,
+        #                     strategy, agent_particip_rate)
+        #     self.schedule.add(a)
 
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
         self.agg_sells = 0

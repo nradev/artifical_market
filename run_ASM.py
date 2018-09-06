@@ -23,6 +23,7 @@ time.clock()
 #                     max_long=0.02)
 # 10% value 90% zero inf
 model = MarketModel(n_agents=200,
+                    population_composition={'zero_information': 0.5, 'value': 0.25, 'momentum': 0.25},
                     dt=1/252, # 1 business day time step
                     init_rf=0.018,
                     n_shares=1000,
@@ -44,15 +45,6 @@ for i in range(1000):
 
 t1 = time.clock()
 print('Model run: {}'.format(round(t1,2)))
-#
-# vs = [v for k, v in model.stock.price_hist.items()]
-# ks = [k for k, v in model.stock.price_hist.items()]
-# _50s = [m for k, m in model.stock.price_MA_50_hist.items()]
-# plt.plot(ks, vs)
-# #plt.plot(ks, _50s)
-# plt.show()
-print(time.clock())
-
 model_data = model.datacollector.get_model_vars_dataframe()
 agent_data = model.datacollector.get_agent_vars_dataframe()
 t2 = time.clock()
@@ -62,7 +54,6 @@ t3 = time.clock()
 
 series = ["Price", "Dividend", "Global Wealth", "Agg Buys", "Agg Sells", "Av Buys", "Av Sells",
           "Buy Ratio", "Sell Ratio"]
-
 lw = 0.5
 plt.figure("Model", facecolor='w', figsize=(20,11.5) ,frameon=False)
 plt.suptitle('This is a somewhat long figure title', fontsize=16)
