@@ -19,6 +19,9 @@ class ForecastRule:
                                                                               str(round(self.accuracy, 2)),
                                                                               str(round(self.strength, 2)))
 
+    def __repr__(self):
+        return str(self)
+
     def match_to_market(self, stock):
         for idx, ch in enumerate(self.rule_string):
             if ch != "#" and ch != stock.rule_string[idx]: return False
