@@ -23,7 +23,7 @@ time.clock()
 #                     max_long=0.02)
 # 10% value 90% zero inf
 model = MarketModel(n_agents=200,
-                    population_composition={'zero_information': 0.5, 'value': 0.25, 'momentum': 0.25},
+                    population_composition={'zero_information': 1},#0.5, 'value': 0.25, 'momentum': 0.25},
                     dt=1/252, # 1 business day time step
                     init_rf=0.018,
                     n_shares=1000,

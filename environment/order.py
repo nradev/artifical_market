@@ -1,11 +1,12 @@
 class Order:
-    def __init__(self, agent_id, order_id, side, order_type, quantity, time):
+    def __init__(self, agent_id, order_id, side, quantity, time, order_type, limit_price=None):
         self.order_id = order_id
         self.agent_id = agent_id
         self.side = side
-        self.order_type = order_type
         self.quantity = quantity
         self.time = time
+        self.order_type = order_type
+        self.limit_price = limit_price
 
 
 class OrderBook:

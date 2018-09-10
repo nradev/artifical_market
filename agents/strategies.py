@@ -1,5 +1,6 @@
 import random
 from math import exp, sqrt
+from environment.order import Order
 from agents.genetic import ForecastRule, RuleBook
 
 class Strategy:
@@ -11,15 +12,23 @@ class Strategy:
         self.stock = self.model.stock
         self.sigma_sq = self.stock.dividend_vol ** 2
         self.exp_p_d = self.stock.price + self.stock.dividend
+        self.tolerance = 0.5  # profit slip tolerance
 
     def recalc_exp_p_d(self):
-        return self.exp_p_d
+        pass
 
     def calc_share_demand(self, stock=None): # stock argument to be used in multi stock simulation
         self.recalc_exp_p_d()
         share_demand = (self.exp_p_d - (1 + self.model.rf_rate) * self.stock.price) / \
                        (self.agent.risk_aversion * self.sigma_sq)
         return share_demand
+
+    def calc_order(self, stock=None): # stock argument to be used in multi stock simulation
+        self.recalc_exp_p_d()
+        share_demand = (self.exp_p_d - (1 + self.model.rf_rate) * self.stock.price) / \
+                       (self.agent.risk_aversion * self.sigma_sq)
+        limit_price = (1 - self.tolerance) * self.exp_p_d + self.tolerance * (1 + self.model.rf_rate) * self.stock.price
+        return share_demand, limit_price
 
 
 class ZeroInformation(Strategy):
@@ -31,6 +40,12 @@ class ZeroInformation(Strategy):
         self.exp_p_d = 0.9 * self.exp_p_d + 0.1 * (random.uniform(0.98, 1.02) * (self.stock.price
                                                                                  + self.stock.dividend))
         return self.exp_p_d
+
+    def calc_order(self, stock=None): # stock argument to be used in multi stock simulation
+        self.recalc_exp_p_d()
+        share_demand = (self.exp_p_d - (1 + self.model.rf_rate) * self.stock.price) / \
+                       (self.agent.risk_aversion * self.sigma_sq)
+        return share_demand, None
 
 
 class Value(Strategy):
@@ -79,32 +94,3 @@ def genetic(agent, model):
     agent.exp_p_d = a * (price + dividend * model.dt) + b
     share_demand = (agent.exp_p_d - (1 + rf_rate) ** model.dt * price) / (risk_aversion * sigma_sq)
     return share_demand
-
-# def zero_information(agent, model):  # (self, price, dividend, rf_rate, risk_aversion=0.5):
-#     price = model.stock.price
-#     dividend = model.stock.dividend
-#     rf_rate = model.rf_rate
-#     risk_aversion = model.glob_risk_aversion
-#     dt = model.dt
-#     sigma_sq = model.stock.dividend_vol ** 2
-#     # agent.exp_p_d = 0.9 * agent.exp_p_d + 0.1 * random.uniform(0.98, 1.02) * price + dividend * dt
-#     # share_demand = (agent.exp_p_d - ((1 + rf_rate) ** dt) * price) / (risk_aversion * sigma_sq * dt)
-#     agent.exp_p_d = 0.9 * agent.exp_p_d + 0.1 * (random.uniform(0.98, 1.02) * (price + dividend))
-#     share_demand = (agent.exp_p_d - (1 + rf_rate) * price) / (risk_aversion * sigma_sq)
-#     return share_demand
-#
-# def value(agent, model):#(self, price, dividend, rf_rate, risk_aversion=0.5):
-#     price = model.stock.price
-#     dividend = model.stock.dividend
-#     rf_rate = model.rf_rate
-#     risk_aversion = model.glob_risk_aversion
-#     dividend_growth = model.stock.dividend_growth
-#     dividend_vol = model.stock.dividend_vol
-#     dt = model.dt
-#     sigma_sq = model.stock.dividend_vol ** 2
-#     div_noise_sig = random.uniform(0.05, 0.15)
-#     exp_d = dividend * exp((dividend_growth - 0.5*(dividend_vol**2))*(dt)
-#                         + dividend_vol*sqrt(dt)*random.gauss(0, div_noise_sig))
-#     agent.exp_p_d = exp_d / rf_rate + exp_d
-#     share_demand = (agent.exp_p_d - (1 + rf_rate) * price) / (risk_aversion * sigma_sq)
-#     return share_demand

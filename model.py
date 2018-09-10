@@ -18,6 +18,7 @@ class MarketAgent(Agent):
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
         self.risk_aversion = risk_aversion
         self.share_demand = 0
+        self.limit = 0
         self.target_shares = 0
         self.trade_shares = 0
         self.particip_rate =  particip_rate
@@ -38,7 +39,7 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        self.share_demand = self.strategy.calc_share_demand()
+        self.share_demand, self.limit = self.strategy.calc_order()
         self.target_shares = self.share_demand - self.stock_shares
         max_leverage = 0.2
         trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares)
@@ -50,15 +51,18 @@ class MarketAgent(Agent):
             self.trade_shares = max(self.target_shares, -(self.model.max_short*self.model.stock.outstanding_shares
                                     + self.stock_shares), trade_for_min_w)
         else: return
-        self.order_trade(self.trade_shares)
+        self.order_trade(self.trade_shares, self.limit)
 
-    def order_trade(self, num_shares):
+    def order_trade(self, num_shares, limit=None):
         if num_shares > 0:
             side = 'buy'
         else:
             side = 'sell'
             num_shares = -num_shares
-        order = Order(self.agent_id, self.order_count, side, 'market', num_shares, self.model.current_step)
+        if limit == None:
+            order = Order(self.agent_id, self.order_count, side, num_shares, self.model.current_step, 'market')
+        else:
+            order = Order(self.agent_id, self.order_count, side, num_shares, self.model.current_step, 'limit', limit)
         self.model.order_book.add_order(order)
         if self.order_count < 50:
             self.order_count += 1
@@ -126,6 +130,7 @@ class MarketModel(Model):
         self.datacollector.collect(self)
         self.schedule.step()
         ###self.matched_trades = self.order_book.get_matched_trades()
+        self.discover_price()
         self.settle()
         self.current_step += 1
         self.stock.update_data(self.current_step, self.stock.price)
@@ -137,7 +142,7 @@ class MarketModel(Model):
                 agent.cash += (self.stock.dividend/self.stock.dividend_freq) * agent.stock_shares
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
 
-    def settle(self):
+    def discover_price(self):
         sells = [x for x in self.order_book.orders if x.side == 'sell']
         buys = [x for x in self.order_book.orders if x.side == 'buy']
 
@@ -154,7 +159,13 @@ class MarketModel(Model):
         self.sell_ratio = (min(self.agg_sells, self.available_buys) / self.agg_sells)
 
         self.stock.price = self.stock.price * (1 + self.eta * (self.agg_buys - self.agg_sells)) # find a better price mechanism
+        # rho = 0.95
+        # f = rho / (1 + self.rf_rate - rho)
+        # g = (1/self.rf_rate) * (1 + f) * (self.stock.init_dividend - self.glob_risk_aversion
+        #                      * (self.stock.div_noise_sig**2) * (1000/self.n_agents))
+        # self.stock.price = f * self.stock.dividend + g
 
+    def settle(self):
         for order in self.order_book.orders:
             ### need to prelist if using RandomScheduler
             agent = self.schedule.agents[order.agent_id]
