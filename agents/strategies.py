@@ -17,12 +17,6 @@ class Strategy:
     def recalc_exp_p_d(self):
         pass
 
-    def calc_share_demand(self, stock=None): # stock argument to be used in multi stock simulation
-        self.recalc_exp_p_d()
-        share_demand = (self.exp_p_d - (1 + self.model.rf_rate) * self.stock.price) / \
-                       (self.agent.risk_aversion * self.sigma_sq)
-        return share_demand
-
     def calc_order(self, stock=None): # stock argument to be used in multi stock simulation
         self.recalc_exp_p_d()
         share_demand = (self.exp_p_d - (1 + self.model.rf_rate) * self.stock.price) / \

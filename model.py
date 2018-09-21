@@ -1,5 +1,6 @@
 import random
 import numpy as np
+import networkx as nx
 from mesa import Agent, Model
 from mesa.time import BaseScheduler
 from environment.core.datacollection import ModDataCollector
@@ -29,6 +30,7 @@ class MarketAgent(Agent):
             self.strategy = Value(self)
         elif strategy == 'momentum':
             self.strategy = Momentum(self)
+        self.node = None
 
     def step(self):
         self.recalculate_portfolio()
@@ -120,6 +122,7 @@ class MarketModel(Model):
                              "Stock Shares": "stock_shares", "Demand": "share_demand",
                              "Target Trade": "target_shares", "Actual Trade": "trade_shares",
                              "Price Expectation": "strategy.exp_p_d"})
+        self.net = self.generate_net()
 
     def step(self):
         self.datacollector.collect(self)
@@ -187,3 +190,13 @@ class MarketModel(Model):
         volume = sum([x.quantity for x in trades])
         if volume <= 0: return self.stock.price
         return sum(np.multiply([x.quantity for x in trades], [x.price for x in trades])) / volume
+
+    def generate_net(self):
+        net = nx.scale_free_graph(self.n_agents, alpha=0.41, beta=0.25, gamma=0.34)
+        net = nx.to_undirected(net)
+        nodes = list(net.nodes)
+        random.shuffle(nodes)
+        for agent, node in zip(self.schedule.agents, nodes):
+            agent.node = node
+            net.nodes[node]['agent_id'] = agent.agent_id
+        return net
