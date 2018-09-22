@@ -2,11 +2,12 @@ import random
 import numpy as np
 import networkx as nx
 from mesa import Agent, Model
-from mesa.time import BaseScheduler
+from mesa.time import BaseScheduler, StagedActivation
 from environment.core.datacollection import ModDataCollector
 from environment.order import Order, OrderBook, Trade
 from environment.instruments import Stock
 from agents.strategies import ZeroInformation, Value, Momentum
+import matplotlib.pyplot as plt
 
 class MarketAgent(Agent):
     def __init__(self, agent_id, model, init_shares, init_wealth, risk_aversion,
@@ -19,6 +20,7 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
         self.risk_aversion = risk_aversion
+        self.exp_p_d = None
         self.share_demand = 0
         self.limit = 0
         self.target_shares = 0
@@ -32,9 +34,15 @@ class MarketAgent(Agent):
             self.strategy = Momentum(self)
         self.node = None
 
-    def step(self):
+    def step1(self):
         self.recalculate_portfolio()
-        if random.random() < self. particip_rate:
+        self.exp_p_d = self.strategy.calc_exp_p_d()
+
+    def step2(self):
+        self.exp_p_d = self.strategy.incorp_neighbour_exp()
+        self.share_demand = self.strategy.calc_share_demand()
+        self.limit = self.strategy.calc_limit()
+        if random.random() < self.particip_rate:
             self.rebalance()
 
     def recalculate_portfolio(self):
@@ -42,7 +50,7 @@ class MarketAgent(Agent):
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
 
     def rebalance(self):
-        self.share_demand, self.limit = self.strategy.calc_order()
+        # self.share_demand, self.limit = self.strategy.calc_order()
         self.target_shares = self.share_demand - self.stock_shares
         max_leverage = 0.2
         trade_for_max_w = ((self.wealth * (1 + max_leverage)) / self.model.stock.price - self.stock_shares)
@@ -94,7 +102,8 @@ class MarketModel(Model):
                            init_dividend = init_dividend, dividend_freq = dividend_freq,
                            dividend_growth = dividend_growth, dividend_vol = dividend_vol,
                            div_noise_sig=div_noise_sig)
-        self.schedule = BaseScheduler(self)
+        # self.schedule = BaseScheduler(self)
+        self.schedule = StagedActivation(self, ['step1', 'step2'])
         self.order_book = OrderBook()
         self.settle_type = settle_type
         agent_id = 0
@@ -123,6 +132,9 @@ class MarketModel(Model):
                              "Target Trade": "target_shares", "Actual Trade": "trade_shares",
                              "Price Expectation": "strategy.exp_p_d"})
         self.net = self.generate_net()
+        # plt.plot()
+        # nx.draw_kamada_kawai(self.net)
+        # plt.show()
 
     def step(self):
         self.datacollector.collect(self)
