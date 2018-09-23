@@ -11,6 +11,7 @@ model = MarketModel(n_agents=200,
                     n_shares=1000,
                     init_agent_wealth=1000,#(4*5*1000)/200,
                     glob_risk_aversion=1.5,
+                    glob_interact_rate=0.25,
                     agent_particip_rate=1,
                     init_price=100,
                     init_dividend=2,
@@ -21,7 +22,7 @@ model = MarketModel(n_agents=200,
                     price_adj_speed=0.0000042,
                     max_short=0.01,
                     max_long=0.02)
-for i in range(1000):
+for i in range(500):
     model.step()
 
 t1 = time.clock()
@@ -39,7 +40,7 @@ if chart:
               "Buy Ratio", "Sell Ratio"]
     lw = 0.5
     plt.figure("Model", facecolor='w', figsize=(20,11.5) ,frameon=False)
-    plt.suptitle('This is a somewhat long figure title', fontsize=16)
+    plt.suptitle('Model Vars', fontsize=16)
     plt.subplot(321)
     plt.plot(model_data[series[0]], linewidth=lw)
     plt.title(series[0])
@@ -91,5 +92,3 @@ if chart:
 t4 = time.clock()
 print('Run model: {}\nGet data frames: {}\nPrint: {}\nPlot: {}\nTotal: {}'
           .format(round(t1,2),round(t2-t1,2),round(t3-t2,2),round(t4-t3,2),round(t4,2)))
-    # print(model_data["Price"][251])
-print(list(model.net.nodes.data()))

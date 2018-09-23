@@ -156,3 +156,38 @@ def mutate_rule(rule, p_bit_mut=0.03, p_0_to_hash=2. / 3., p_1_to_hash=2. / 3., 
 # [print(rule) for rule in rule_book.rules]
 # rule_book.evolve(0.5, 0.5)
 # [print(rule) for rule in rule_book.rules]
+
+# self.rule_string = ""
+# for v in [0.25, 0.50, 0.75, 0.875, 1.0, 1.125]:
+#     self.rule_string += "1" if self.PID_ratio > v else "0"
+# self.rule_string += "1" if self.price_MA_5 < model.stock.price else "0"
+# self.rule_string += "1" if self.price_MA_10 < model.stock.price else "0"
+# self.rule_string += "1" if self.price_MA_50 < model.stock.price else "0"
+# self.rule_string += "1" if self.price_MA_100 < model.stock.price else "0"
+# self.rule_string += "10"
+
+# def calculate_MA(self, periods, time_step):
+#     if periods < time_step - 1:
+#         return sum([v for k, v in self.price_hist.items()][-periods:]) / periods
+#     else:
+#         return sum([v for k, v in self.price_hist.items()]) / (time_step + 1)
+
+# def update_rule_string(self):
+#     new_string = ""
+#     for v in [0.25, 0.50, 0.75, 0.875, 1.0, 1.125]:
+#         new_string += "1" if self.PID_ratio > v else "0"
+#     new_string += "1" if self.price_MA_5 < self.model.stock.price else "0"
+#     new_string += "1" if self.price_MA_10 < self.model.stock.price else "0"
+#     new_string += "1" if self.price_MA_50 < self.model.stock.price else "0"
+#     new_string += "1" if self.price_MA_100 < self.model.stock.price else "0"
+#     new_string += "10"
+#     self.rule_string = new_string
+#
+#     # lat = [v for k, v in self.price_hist.items()]
+#     # den = (self.model.current_step + 1)
+#     # if periods < self.model.current_step:
+#     #     lat = lat[-periods:]
+#     #     den = periods
+#     # return sum(lat) / den
+
+# self.PID_ratio = (self.price * self.model.rf_rate) / self.dividend

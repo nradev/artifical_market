@@ -13,6 +13,8 @@ class Strategy:
         self.sigma_sq = self.stock.dividend_vol ** 2
         self.exp_p_d = self.stock.price + self.stock.dividend
         self.tolerance = 0.5 # profit slip tolerance
+        self.neigh_exps = []
+        self.interact_rate = self.model.glob_interact_rate
 
     def calc_exp_p_d(self):
         pass
@@ -30,11 +32,16 @@ class Strategy:
             limit_price = None
         return limit_price
 
+    def collect_neigh_exp(self):
+        if self.model.current_step == 0: # drop condition if network not static
+            self.agent.neighbors = [self.model.net.nodes[node]['agent_id'] for node
+                                    in list(self.model.net.adj[self.agent.node])]
+        self.neigh_exps = [self.model.schedule.agents[id].exp_p_d for id in self.agent.neighbors]
+
     def incorp_neighbour_exp(self):
-        alpha = 0.5
-        neighbours = [self.model.net.nodes[node]['agent_id'] for node in list(self.model.net.adj[self.agent.node])]
-        neigh_exp_p_ds = [self.model.schedule.agents[id].exp_p_d for id in neighbours]
-        self.exp_p_d = (1 - alpha) * self.exp_p_d + alpha * (sum(neigh_exp_p_ds)/len(neigh_exp_p_ds))
+        alpha = self.interact_rate
+        neigh_average_exp = sum(self.neigh_exps) / len(self.neigh_exps)
+        self.exp_p_d = (1 - alpha) * self.exp_p_d + alpha * neigh_average_exp
         return self.exp_p_d
 
 class ZeroInformation(Strategy):

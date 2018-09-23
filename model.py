@@ -2,7 +2,7 @@ import random
 import numpy as np
 import networkx as nx
 from mesa import Agent, Model
-from mesa.time import BaseScheduler, StagedActivation
+from mesa.time import StagedActivation
 from environment.core.datacollection import ModDataCollector
 from environment.order import Order, OrderBook, Trade
 from environment.instruments import Stock
@@ -21,10 +21,10 @@ class MarketAgent(Agent):
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
         self.risk_aversion = risk_aversion
         self.exp_p_d = None
-        self.share_demand = 0
-        self.limit = 0
-        self.target_shares = 0
-        self.trade_shares = 0
+        self.share_demand = None
+        self.limit = None
+        self.target_shares = None
+        self.trade_shares = None
         self.particip_rate =  particip_rate
         if strategy == 'zero_information':
             self.strategy = ZeroInformation(self)
@@ -33,12 +33,16 @@ class MarketAgent(Agent):
         elif strategy == 'momentum':
             self.strategy = Momentum(self)
         self.node = None
+        self.neighbors = []
 
-    def step1(self):
+    def stage1(self):
         self.recalculate_portfolio()
         self.exp_p_d = self.strategy.calc_exp_p_d()
 
-    def step2(self):
+    def stage2(self):
+        self.strategy.collect_neigh_exp()
+
+    def stage3(self):
         self.exp_p_d = self.strategy.incorp_neighbour_exp()
         self.share_demand = self.strategy.calc_share_demand()
         self.limit = self.strategy.calc_limit()
@@ -82,16 +86,16 @@ class MarketAgent(Agent):
 
 
 class MarketModel(Model):
-    def __init__(self, n_agents, population_composition={'zero_information': 1}, settle_type='limit',
-                 dt = 1/252, init_rf = 0.02,
-                 n_shares = 1000, init_agent_wealth=1000, glob_risk_aversion = 0.5,  agent_particip_rate=1,
-                 init_price = 50, init_dividend = 5, dividend_freq = 4, dividend_growth=0.01, dividend_vol = 0.2,
-                 div_noise_sig=0.1, price_adj_speed = 0.1, max_short = 0.0001, max_long = 0.02):
+    def __init__(self, n_agents, population_composition={'zero_information': 1}, settle_type='limit', dt=1/252,
+                 init_rf=0.02, n_shares=1000, init_agent_wealth=1000, glob_risk_aversion=0.5, glob_interact_rate=0.25,
+                 agent_particip_rate=1, init_price=50, init_dividend=5, dividend_freq=4, dividend_growth=0.01,
+                 dividend_vol=0.2, div_noise_sig=0.1, price_adj_speed=0.1, max_short=0.0001, max_long=0.02):
         super().__init__()
         self.running = True
         self.n_agents = n_agents
         self.population_composition = population_composition
         self.glob_risk_aversion = glob_risk_aversion
+        self.glob_interact_rate = glob_interact_rate
         self.rf_rate = init_rf #to be controlled by a regulator agent in the future
         self.eta = price_adj_speed
         self.max_short = max_short
@@ -102,11 +106,12 @@ class MarketModel(Model):
                            init_dividend = init_dividend, dividend_freq = dividend_freq,
                            dividend_growth = dividend_growth, dividend_vol = dividend_vol,
                            div_noise_sig=div_noise_sig)
-        # self.schedule = BaseScheduler(self)
-        self.schedule = StagedActivation(self, ['step1', 'step2'])
+        self.schedule = StagedActivation(self, ['stage1', 'stage2', 'stage3'])
         self.order_book = OrderBook()
         self.settle_type = settle_type
         agent_id = 0
+        if sum([population_composition[key] for key in population_composition]) - 1.0 > 1e-06:
+            raise NameError('population_compositions elements must sum up to 1')
         for key in population_composition:
             for i in range(int(population_composition[key] * self.n_agents)):
                 init_shares = n_shares / n_agents
@@ -141,7 +146,6 @@ class MarketModel(Model):
         self.schedule.step()
         self.settle()
         self.current_step += 1
-        #self.stock.update_data(self.current_step, self.stock.price)
         for agent in self.schedule.agents:
             agent.cash *= (1 + self.rf_rate) ** self.dt
         if self.current_step % ((self.dt ** -1)/self.stock.dividend_freq) == 0:
