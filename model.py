@@ -1,13 +1,13 @@
-import random
-import numpy as np
+from random import random, shuffle
+from numpy import multiply
 import networkx as nx
 from mesa import Agent, Model
 from mesa.time import StagedActivation
 from environment.core.datacollection import ModDataCollector
-from environment.order import Order, OrderBook, Trade
+from environment.order import Order, OrderBook
 from environment.instruments import Stock
 from agents.strategies import ZeroInformation, Value, Momentum
-import matplotlib.pyplot as plt
+
 
 class MarketAgent(Agent):
     def __init__(self, agent_id, model, init_shares, init_wealth, risk_aversion,
@@ -25,7 +25,7 @@ class MarketAgent(Agent):
         self.limit = None
         self.target_shares = None
         self.trade_shares = None
-        self.particip_rate =  particip_rate
+        self.particip_rate = particip_rate
         if strategy == 'zero_information':
             self.strategy = ZeroInformation(self)
         elif strategy == 'value':
@@ -46,7 +46,7 @@ class MarketAgent(Agent):
         self.exp_p_d = self.strategy.incorp_neighbour_exp()
         self.share_demand = self.strategy.calc_share_demand()
         self.limit = self.strategy.calc_limit()
-        if random.random() < self.particip_rate:
+        if random() < self.particip_rate:
             self.rebalance()
 
     def recalculate_portfolio(self):
@@ -74,7 +74,7 @@ class MarketAgent(Agent):
         else:
             side = 'sell'
             num_shares = -num_shares
-        if limit == None:
+        if limit is None:
             order = Order(self.agent_id, self.order_count, side, num_shares, self.model.current_step, 'market')
         else:
             order = Order(self.agent_id, self.order_count, side, num_shares, self.model.current_step, 'limit', limit)
@@ -96,15 +96,15 @@ class MarketModel(Model):
         self.population_composition = population_composition
         self.glob_risk_aversion = glob_risk_aversion
         self.glob_interact_rate = glob_interact_rate
-        self.rf_rate = init_rf #to be controlled by a regulator agent in the future
+        self.rf_rate = init_rf  #to be controlled by a regulator agent in the future
         self.eta = price_adj_speed
         self.max_short = max_short
         self.max_long = max_long
         self.current_step = 0
         self.dt = dt
-        self.stock = Stock(ticker="STK", model=self, init_price = init_price, outstanding_shares = n_shares,
-                           init_dividend = init_dividend, dividend_freq = dividend_freq,
-                           dividend_growth = dividend_growth, dividend_vol = dividend_vol,
+        self.stock = Stock(ticker="STK", model=self, init_price=init_price, outstanding_shares=n_shares,
+                           init_dividend=init_dividend, dividend_freq=dividend_freq,
+                           dividend_growth=dividend_growth, dividend_vol=dividend_vol,
                            div_noise_sig=div_noise_sig)
         self.schedule = StagedActivation(self, ['stage1', 'stage2', 'stage3'])
         self.order_book = OrderBook()
@@ -139,9 +139,6 @@ class MarketModel(Model):
                              "Target Trade": "target_shares", "Actual Trade": "trade_shares",
                              "Price Expectation": "strategy.exp_p_d"})
         self.net = self.generate_net()
-        # plt.plot()
-        # nx.draw_kamada_kawai(self.net)
-        # plt.show()
 
     def step(self):
         self.datacollector.collect(self)
@@ -175,10 +172,10 @@ class MarketModel(Model):
             self.agg_sells = sum([x.quantity for x in sells])
             self.agg_buys = sum([x.quantity for x in buys])
 
-            if (self.agg_sells==0 or self.agg_buys==0):
+            if self.agg_sells == 0 or self.agg_buys == 0:
                 return
 
-            self.available_sells = min(self.agg_sells, self.stock.outstanding_shares) #add Inventory
+            self.available_sells = min(self.agg_sells, self.stock.outstanding_shares)  #add Inventory
             self.available_buys = min(self.agg_buys, self.stock.outstanding_shares)
 
             self.buy_ratio = (min(self.agg_buys, self.available_sells) / self.agg_buys)
@@ -191,7 +188,7 @@ class MarketModel(Model):
             #                      * (self.stock.div_noise_sig**2) * (1000/self.n_agents))
             # self.stock.price = f * self.stock.dividend + g
             for order in self.order_book.orders:
-                ### need to prelist if using RandomScheduler
+                # need to prelist if using RandomScheduler
                 agent = self.schedule.agents[order.agent_id]
                 if order.side == 'buy':
                     trade_quantity = self.buy_ratio * order.quantity
@@ -207,13 +204,13 @@ class MarketModel(Model):
         trades = [x for x in self.matched_trades if x.quantity > 0]
         volume = sum([x.quantity for x in trades])
         if volume <= 0: return self.stock.price
-        return sum(np.multiply([x.quantity for x in trades], [x.price for x in trades])) / volume
+        return sum(multiply([x.quantity for x in trades], [x.price for x in trades])) / volume
 
     def generate_net(self):
-        net = nx.scale_free_graph(self.n_agents, alpha=0.41, beta=0.25, gamma=0.34)
+        net = nx.scale_free_graph(self.n_agents, alpha=0.1, beta=0.01, gamma=0.89)
         net = nx.to_undirected(net)
         nodes = list(net.nodes)
-        random.shuffle(nodes)
+        shuffle(nodes)
         for agent, node in zip(self.schedule.agents, nodes):
             agent.node = node
             net.nodes[node]['agent_id'] = agent.agent_id

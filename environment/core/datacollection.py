@@ -1,5 +1,5 @@
 from mesa.datacollection import DataCollector
-import operator
+from operator import attrgetter
 
 class ModDataCollector(DataCollector):
     def __init__(self, model_reporters=None, agent_reporters=None, tables=None):
@@ -11,7 +11,7 @@ class ModDataCollector(DataCollector):
         Create a function which collects the value of a named attribute
         '''
         def attr_collector(obj):
-            return operator.attrgetter(attr)(obj)
+            return attrgetter(attr)(obj)
             #return getattr(obj, attr)
 
         return attr_collector

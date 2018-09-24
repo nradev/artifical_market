@@ -1,5 +1,6 @@
 import time
 import matplotlib.pyplot as plt
+import networkx as nx
 from model import MarketModel
 
 time.clock()
@@ -11,7 +12,7 @@ model = MarketModel(n_agents=200,
                     n_shares=1000,
                     init_agent_wealth=1000,#(4*5*1000)/200,
                     glob_risk_aversion=1.5,
-                    glob_interact_rate=0.15,
+                    glob_interact_rate=0.1,
                     agent_particip_rate=1,
                     init_price=100,
                     init_dividend=2,
@@ -98,6 +99,13 @@ if chart:
         plt.plot(agent_data.xs(agent, level="AgentID")["Target Trade"], linewidth=lw)
         plt.plot(agent_data.xs(agent, level="AgentID")["Actual Trade"], linewidth=lw+0.5)
         plt.ylabel("Target/Actual Trade")
+    plt.figure('Network')
+    node_color = [float(model.net.degree(nd)) for nd in model.net]
+    options = {'node_color': node_color, 'node_size': 250, 'width': .5, 'with_labels': False}
+    nx.draw_kamada_kawai(model.net, **options)
+    pos = nx.kamada_kawai_layout(model.net)
+    labels = nx.get_node_attributes(model.net, 'agent_id')
+    nx.draw_networkx_labels(model.net, pos, labels, font_size=8, font_color='w', font_weight='bold')
     plt.show()
 t4 = time.clock()
 print('Run model: {}\nGet data frames: {}\nPrint: {}\nPlot: {}\nTotal: {}'
