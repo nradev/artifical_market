@@ -11,7 +11,7 @@ model = MarketModel(n_agents=200,
                     n_shares=1000,
                     init_agent_wealth=1000,#(4*5*1000)/200,
                     glob_risk_aversion=1.5,
-                    glob_interact_rate=0.25,
+                    glob_interact_rate=0.15,
                     agent_particip_rate=1,
                     init_price=100,
                     init_dividend=2,
@@ -36,8 +36,8 @@ t3 = time.clock()
 
 chart = True
 if chart:
-    series = ["Price", "Dividend", "Global Wealth", "Agg Buys", "Agg Sells", "Av Buys", "Av Sells",
-              "Buy Ratio", "Sell Ratio"]
+    series = ["Price", "Return", "Dividend", "Agg Buys", "Agg Sells", "Av Buys", "Av Sells",
+              "Buy Ratio", "Sell Ratio", "Vol", "Skew", "Kurt"]
     lw = 0.5
     plt.figure("Model", facecolor='w', figsize=(20,11.5) ,frameon=False)
     plt.suptitle('Model Vars', fontsize=16)
@@ -63,6 +63,16 @@ if chart:
         plt.plot(model_data[series[7]], 'g', linewidth=lw)
         plt.plot(model_data[series[8]], 'r', linewidth=lw)
         plt.title("Sell/Buy Ratios")
+    elif model.settle_type == 'limit':
+        plt.subplot(322)
+        plt.plot(model_data[series[9]], linewidth=lw)
+        plt.title(series[9])
+        plt.subplot(324)
+        plt.plot(model_data[series[10]], linewidth=lw)
+        plt.title(series[10])
+        plt.subplot(326)
+        plt.plot(model_data[series[11]], linewidth=lw)
+        plt.title(series[11])
 
     strategies = [key for key in model.population_composition]
     agents_to_plot = []

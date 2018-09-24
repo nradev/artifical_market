@@ -128,7 +128,9 @@ class MarketModel(Model):
         self.sell_ratio = 0
         self.matched_trades = []
         self.datacollector = ModDataCollector(
-            model_reporters={"Global Wealth": "global_wealth", "Price": "stock.price", "Dividend": "stock.dividend",
+            model_reporters={"Global Wealth": "global_wealth", "Price": "stock.price", "Return": "stock.last_return",
+                             "Vol": "stock.vol", "Skew": "stock.skew", "Kurt": "stock.kurt",
+                             "Dividend": "stock.dividend",
                              "Agg Sells": "agg_sells", "Agg Buys": "agg_buys", "Av Sells": "available_sells",
                              "Av Buys": "available_buys", "Buy Ratio": "buy_ratio", "Sell Ratio": "sell_ratio",
                              "Matched Trades": "matched_trades"},
@@ -145,7 +147,6 @@ class MarketModel(Model):
         self.datacollector.collect(self)
         self.schedule.step()
         self.settle()
-        self.current_step += 1
         for agent in self.schedule.agents:
             agent.cash *= (1 + self.rf_rate) ** self.dt
         if self.current_step % ((self.dt ** -1)/self.stock.dividend_freq) == 0:
@@ -153,6 +154,7 @@ class MarketModel(Model):
             for agent in self.schedule.agents:
                 agent.cash += (self.stock.dividend/self.stock.dividend_freq) * agent.stock_shares
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
+        self.current_step += 1
 
     def settle(self):
         if self.settle_type == 'limit':
