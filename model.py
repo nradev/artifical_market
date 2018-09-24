@@ -1,4 +1,4 @@
-from random import random, shuffle
+from random import random, shuffle, choice
 from numpy import multiply
 import networkx as nx
 from mesa import Agent, Model
@@ -119,6 +119,14 @@ class MarketModel(Model):
                                 key, agent_particip_rate)
                 self.schedule.add(a)
                 agent_id += 1
+        while agent_id < self.n_agents:
+            init_shares = n_shares / n_agents
+            strat = choice(list(population_composition.keys()))
+            a = MarketAgent(agent_id, self, init_shares, init_agent_wealth, glob_risk_aversion,
+                            strat, agent_particip_rate)
+            self.schedule.add(a)
+            agent_id += 1
+
         self.global_wealth = sum([agent.wealth for agent in self.schedule.agents])
         self.agg_sells = 0
         self.agg_buys = 0
@@ -214,4 +222,5 @@ class MarketModel(Model):
         for agent, node in zip(self.schedule.agents, nodes):
             agent.node = node
             net.nodes[node]['agent_id'] = agent.agent_id
+            net.nodes[node]['strat'] = agent.strategy.strat_name
         return net
