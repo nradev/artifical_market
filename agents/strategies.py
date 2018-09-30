@@ -3,7 +3,7 @@ from math import exp, sqrt
 
 class Strategy:
     """ Base class for strategies. """
-    def __init__(self, agent):
+    def __init__(self, agent, risk_aversion, loss_aversion, behaviour):
         self.strat_name = "Base"
         self.agent = agent
         self.model = agent.model
@@ -13,14 +13,33 @@ class Strategy:
         self.tolerance = 0.5 # profit slip tolerance
         self.neigh_exps = []
         self.interact_rate = self.model.glob_interact_rate
+        if behaviour[0] == 'R':
+            self.risk_aversion = risk_aversion
+            self.loss_aversion = 1
+            self.cond_loss_aversion = 1
+            self.confidence = 1
+        elif behaviour[0] == 'L':
+            self.risk_aversion = 1
+            self.loss_aversion = loss_aversion
+            self.cond_loss_aversion = loss_aversion
+            self.confidence = 1
+        if len(behaviour) == 2:
+            if behaviour[1] == "C": self.confidence = self.model.confidance_levels[0]
+            elif behaviour[1] == "O": self.confidence = self.model.confidance_levels[1]
+        self.prev_wealth = agent.wealth
 
     def calc_exp_p_d(self):
         pass
 
+    def update_cond_loss_aversion(self):
+        if self.prev_wealth > self.agent.wealth: self.cond_loss_aversion = self.loss_aversion
+        else: self.cond_loss_aversion = 1
+        self.prev_wealth = self.agent.wealth
+
     def calc_share_demand(self, stock=None): # stock argument to be used in multi stock simulation
-        # self.recalc_exp_p_d()
+        if self.loss_aversion != 1: self.update_cond_loss_aversion()
         return (self.exp_p_d - (1 + self.model.rf_rate) * self.stock.price) / \
-                       (self.agent.risk_aversion * self.sigma_sq)
+                       (self.risk_aversion * self.cond_loss_aversion * self.confidence * self.sigma_sq)
 
     def calc_limit(self, stock=None):
         if self.model.settle_type == 'limit':
@@ -43,8 +62,8 @@ class Strategy:
         return self.exp_p_d
 
 class ZeroInformation(Strategy):
-    def __init__(self, agent):
-        super().__init__(agent)
+    def __init__(self, agent, risk_aversion, loss_aversion, confidence):
+        super().__init__(agent, risk_aversion, loss_aversion, confidence)
         self.strat_name = "zero_information"
 
     def calc_exp_p_d(self):
@@ -54,8 +73,8 @@ class ZeroInformation(Strategy):
 
 
 class Value(Strategy):
-    def __init__(self, agent):
-        super().__init__(agent)
+    def __init__(self, agent, risk_aversion, loss_aversion, confidence):
+        super().__init__(agent, risk_aversion, loss_aversion, confidence)
         self.strat_name = "value"
         self.div_noise_sig = uniform(0.05, 0.15)
         self.prev_dividend = self.stock.dividend
@@ -76,8 +95,8 @@ class Value(Strategy):
 
 
 class Momentum(Strategy):
-    def __init__(self, agent):
-        super().__init__(agent)
+    def __init__(self, agent, risk_aversion, loss_aversion, confidence):
+        super().__init__(agent, risk_aversion, loss_aversion, confidence)
         self.strat_name = "momentum"
         self.prev_p_d = self.stock.price + self.stock.dividend
 

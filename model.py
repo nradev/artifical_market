@@ -10,7 +10,7 @@ from agents.strategies import ZeroInformation, Value, Momentum
 
 
 class MarketAgent(Agent):
-    def __init__(self, agent_id, model, init_shares, init_wealth, risk_aversion,
+    def __init__(self, agent_id, model, init_shares, init_wealth, risk_aversion, loss_aversion, behaviour,
                  strategy='zero_information', particip_rate=1):
         super().__init__(agent_id, model)
         self.agent_id = agent_id
@@ -19,7 +19,6 @@ class MarketAgent(Agent):
         self.stock_shares = init_shares
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
         self.cash = self.wealth - self.stock_shares * self.model.stock.price
-        self.risk_aversion = risk_aversion
         self.exp_p_d = None
         self.share_demand = None
         self.limit = None
@@ -27,11 +26,11 @@ class MarketAgent(Agent):
         self.trade_shares = None
         self.particip_rate = particip_rate
         if strategy == 'zero_information':
-            self.strategy = ZeroInformation(self)
+            self.strategy = ZeroInformation(self, risk_aversion, loss_aversion, behaviour)
         elif strategy == 'value':
-            self.strategy = Value(self)
+            self.strategy = Value(self, risk_aversion, loss_aversion, behaviour)
         elif strategy == 'momentum':
-            self.strategy = Momentum(self)
+            self.strategy = Momentum(self, risk_aversion, loss_aversion, behaviour)
         self.node = None
         self.neighbors = []
 
@@ -86,15 +85,17 @@ class MarketAgent(Agent):
 
 
 class MarketModel(Model):
-    def __init__(self, n_agents, population_composition={'zero_information': 1}, settle_type='limit', dt=1/252,
-                 init_rf=0.02, n_shares=1000, init_agent_wealth=1000, glob_risk_aversion=0.5, glob_interact_rate=0.25,
+    def __init__(self, n_agents, population_composition={'zero_information': {'R': 1}}, settle_type='limit', dt=1/252,
+                 init_rf=0.02, n_shares=1000, init_agent_wealth=1000, glob_risk_aversion=0.5,
+                 glob_loss_aversion=2.5, confidance_levels=(0.7, 3), glob_interact_rate=0.25,
                  agent_particip_rate=1, init_price=50, init_dividend=5, dividend_freq=4, dividend_growth=0.01,
                  dividend_vol=0.2, div_noise_sig=0.1, price_adj_speed=0.1, max_short=0.0001, max_long=0.02):
         super().__init__()
         self.running = True
         self.n_agents = n_agents
         self.population_composition = population_composition
-        self.glob_risk_aversion = glob_risk_aversion
+        #self.glob_risk_aversion = glob_risk_aversion
+        self.confidance_levels = confidance_levels
         self.glob_interact_rate = glob_interact_rate
         self.rf_rate = init_rf  #to be controlled by a regulator agent in the future
         self.eta = price_adj_speed
@@ -110,20 +111,24 @@ class MarketModel(Model):
         self.order_book = OrderBook()
         self.settle_type = settle_type
         agent_id = 0
-        if sum([population_composition[key] for key in population_composition]) - 1.0 > 1e-06:
+        # if sum(population_composition[strat] for strat in population_composition) - 1.0 > 1e-06:
+        if sum(population_composition[strat][beh] for strat in population_composition
+                                                        for beh in population_composition[strat]) - 1.0 > 1e-06:
             raise NameError('population_compositions elements must sum up to 1')
-        for key in population_composition:
-            for i in range(int(population_composition[key] * self.n_agents)):
-                init_shares = n_shares / n_agents
-                a = MarketAgent(agent_id, self, init_shares, init_agent_wealth, glob_risk_aversion,
-                                key, agent_particip_rate)
-                self.schedule.add(a)
-                agent_id += 1
+        init_shares = n_shares / n_agents
+        for strat in population_composition:
+            for beh in population_composition[strat]:
+                for i in range(int(population_composition[strat][beh] * self.n_agents)):
+                    a = MarketAgent(agent_id, self, init_shares, init_agent_wealth, glob_risk_aversion,
+                                    glob_loss_aversion, beh, strat, agent_particip_rate)
+                    self.schedule.add(a)
+                    agent_id += 1
         while agent_id < self.n_agents:
             init_shares = n_shares / n_agents
             strat = choice(list(population_composition.keys()))
+            beh = choice(list(population_composition[strat].keys()))
             a = MarketAgent(agent_id, self, init_shares, init_agent_wealth, glob_risk_aversion,
-                            strat, agent_particip_rate)
+                            glob_loss_aversion, beh, strat, agent_particip_rate)
             self.schedule.add(a)
             agent_id += 1
 
@@ -181,6 +186,7 @@ class MarketModel(Model):
             self.agg_buys = sum([x.quantity for x in buys])
 
             if self.agg_sells == 0 or self.agg_buys == 0:
+                self.stock.price = self.stock.price
                 return
 
             self.available_sells = min(self.agg_sells, self.stock.outstanding_shares)  #add Inventory
