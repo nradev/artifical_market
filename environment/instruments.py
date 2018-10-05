@@ -16,10 +16,10 @@ class Stock:
         self.dividend_vol = dividend_vol
         self.div_noise_sig = div_noise_sig
 
-        self.last_return = None
-        self.vol = None
-        self.skew= None
-        self.kurt = None
+        self.last_return = 0
+        self.vol = 0
+        self.skew = 0
+        self.kurt = 0
 
     @property
     def price(self):
@@ -32,6 +32,7 @@ class Stock:
         self._price = new_price
 
     def update_dividend(self):
+        pass
         # Stochastic Dividend
         self.dividend *= exp((self.dividend_growth - 0.5*(self.dividend_vol**2))*(1/self.dividend_freq)
                              + self.dividend_vol*sqrt(1/self.dividend_freq)*gauss(0, self.div_noise_sig))

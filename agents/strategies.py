@@ -1,5 +1,8 @@
 from random import uniform, gauss
 from math import exp, sqrt
+from keras.models import Model as MLModel
+from keras.layers import Dense, Input
+import numpy as np
 
 class Strategy:
     """ Base class for strategies. """
@@ -53,7 +56,8 @@ class Strategy:
         if self.model.current_step == 0: # drop condition if network not static
             self.agent.neighbors = [self.model.net.nodes[node]['agent_id'] for node
                                     in list(self.model.net.adj[self.agent.node])]
-        self.neigh_exps = [self.model.schedule.agents[id].exp_p_d for id in self.agent.neighbors]
+        exps = [self.model.schedule.agents[id].exp_p_d for id in self.agent.neighbors]
+        self.neigh_exps = [x for x in exps if x is not None]
 
     def incorp_neighbour_exp(self):
         alpha = self.interact_rate
@@ -62,8 +66,8 @@ class Strategy:
         return self.exp_p_d
 
 class ZeroInformation(Strategy):
-    def __init__(self, agent, risk_aversion, loss_aversion, confidence):
-        super().__init__(agent, risk_aversion, loss_aversion, confidence)
+    def __init__(self, agent, risk_aversion, loss_aversion, behaviour):
+        super().__init__(agent, risk_aversion, loss_aversion, behaviour)
         self.strat_name = "zero_information"
 
     def calc_exp_p_d(self):
@@ -73,8 +77,8 @@ class ZeroInformation(Strategy):
 
 
 class Value(Strategy):
-    def __init__(self, agent, risk_aversion, loss_aversion, confidence):
-        super().__init__(agent, risk_aversion, loss_aversion, confidence)
+    def __init__(self, agent, risk_aversion, loss_aversion, behaviour):
+        super().__init__(agent, risk_aversion, loss_aversion, behaviour)
         self.strat_name = "value"
         self.div_noise_sig = uniform(0.05, 0.15)
         self.prev_dividend = self.stock.dividend
@@ -95,8 +99,8 @@ class Value(Strategy):
 
 
 class Momentum(Strategy):
-    def __init__(self, agent, risk_aversion, loss_aversion, confidence):
-        super().__init__(agent, risk_aversion, loss_aversion, confidence)
+    def __init__(self, agent, risk_aversion, loss_aversion, behaviour):
+        super().__init__(agent, risk_aversion, loss_aversion, behaviour)
         self.strat_name = "momentum"
         self.prev_p_d = self.stock.price + self.stock.dividend
 
@@ -108,3 +112,56 @@ class Momentum(Strategy):
         elif curr_p_d < self.prev_p_d: self.exp_p_d = (self.stock.price + self.stock.dividend) * (1 - phi)
         self.prev_p_d = self.stock.price + self.stock.dividend
         return self.exp_p_d
+
+class ML(Strategy):
+    def __init__(self, agent, risk_aversion, loss_aversion, behaviour):
+        super().__init__(agent, risk_aversion, loss_aversion, behaviour)
+        self.strat_name = "ml"
+        self.lookback = 10
+        self.hist_cutoff = 250
+        self.train_freq = 50
+        self.agent.halt_trade = True
+
+        layer_width = 5
+        activation = 'relu'
+        optimizer = 'rmsprop'
+        loss_func = 'mean_squared_error'
+        x_in = Input(shape=(10,))
+        h1 = Dense(layer_width, activation=activation)(x_in)
+        h2 = Dense(layer_width, activation=activation)(h1)
+        h3 = Dense(layer_width, activation=activation)(h2)
+        y_hat = Dense(1, activation='linear')(h3)
+        self.ml_model = MLModel(inputs=x_in, outputs=y_hat)
+        self.ml_model.compile(optimizer=optimizer, loss=loss_func)
+
+    def train_ml(self):
+        rets = self.model.datacollector.model_vars["Return"][-self.hist_cutoff-1:]
+        inp = []
+        outp = []
+        for i in range(len(rets)-self.lookback):
+            x = rets[i:i+self.lookback]
+            inp.append(x)
+            y = rets[self.lookback]
+            outp.append(y)
+        input = np.array([inp])
+        output = np.array([outp])
+        self.ml_model.fit(input, output, epochs=1)
+
+    def calc_exp_p_d(self):
+        if self.model.current_step == self.lookback + self.hist_cutoff:
+            self.agent.halt_trade = False
+            self.train_ml()
+            lookback_set = np.array(self.model.datacollector.model_vars["Return"][-self.lookback-1:])
+            exp_ret = self.ml_model.predict(lookback_set)
+            self.exp_p_d = self.stock.price * exp_ret
+            return self.exp_p_d
+        elif self.model.current_step > self.lookback + self.hist_cutoff:
+            if self.model.current_step % self.train_freq == 0:
+                self.train_ml()
+            lookback_set = np.array(self.model.datacollector.model_vars["Return"][-self.lookback-1:])
+            exp_ret = self.ml_model.predict(lookback_set)
+            self.exp_p_d = self.stock.price * exp_ret
+            return self.exp_p_d
+        else:
+            return None
+

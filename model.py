@@ -15,6 +15,7 @@ class MarketAgent(Agent):
         super().__init__(agent_id, model)
         self.agent_id = agent_id
         self.order_count = 0
+        self.halt_trade = False
         self.wealth = init_wealth
         self.stock_shares = init_shares
         self.stock_weight = (self.stock_shares * self.model.stock.price) / self.wealth
@@ -45,7 +46,7 @@ class MarketAgent(Agent):
         self.exp_p_d = self.strategy.incorp_neighbour_exp()
         self.share_demand = self.strategy.calc_share_demand()
         self.limit = self.strategy.calc_limit()
-        if random() < self.particip_rate:
+        if random() < self.particip_rate and not self.halt_trade:
             self.rebalance()
 
     def recalculate_portfolio(self):
